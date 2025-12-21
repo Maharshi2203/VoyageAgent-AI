@@ -104,9 +104,15 @@ const ItineraryCard: React.FC<Props> = ({ dayPlan, currency }) => {
                       <div className="bg-space-main text-typo-primary px-8 py-4 rounded-2xl text-base font-black border-2 border-space-border shadow-xl group-hover/item:border-brand-glow transition-colors">
                         {activity.cost === 0 ? 'COMPLIMENTARY' : `${currency}${activity.cost.toLocaleString()}`}
                       </div>
-                      <button className="flex items-center gap-2 text-[10px] font-black text-brand-glow/60 uppercase tracking-[0.3em] hover:text-brand-glow transition-all group/btn pr-2">
-                        Acquire details <ArrowRight size={14} className="group-hover/btn:translate-x-3 transition-transform text-brand-primary" />
-                      </button>
+                        <button 
+                          onClick={() => {
+                            const query = encodeURIComponent(`${activity.name} ${activity.location}`);
+                            window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+                          }}
+                          className="flex items-center gap-2 text-[10px] font-black text-brand-glow/60 uppercase tracking-[0.3em] hover:text-brand-glow transition-all group/btn pr-2"
+                        >
+                          Acquire details <ArrowRight size={14} className="group-hover/btn:translate-x-3 transition-transform text-brand-primary" />
+                        </button>
                     </div>
                   </div>
                 </div>
