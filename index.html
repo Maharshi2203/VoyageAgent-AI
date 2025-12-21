@@ -138,10 +138,23 @@
         background: var(--brand-primary);
       }
       
-      .theme-transition * {
-        transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease !important;
-      }
-    </style>
+        .theme-transition * {
+          transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease !important;
+        }
+
+        .bg-grid {
+          background-size: 50px 50px;
+          background-image: 
+            linear-gradient(to right, var(--space-border) 1px, transparent 1px),
+            linear-gradient(to bottom, var(--space-border) 1px, transparent 1px);
+          opacity: 0.03;
+          mask-image: radial-gradient(circle at center, black, transparent 80%);
+        }
+        .dark .bg-grid {
+          opacity: 0.05;
+        }
+      </style>
+
   <script type="importmap">
 {
   "imports": {
