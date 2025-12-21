@@ -22,7 +22,6 @@ import { travelAgentService } from './services/geminiService';
 import AgentLogConsole from './components/AgentLogConsole';
 import BudgetGauge from './components/BudgetGauge';
 import ItineraryCard from './components/ItineraryCard';
-import AnimatedBackground from './components/AnimatedBackground';
 import { 
   BarChart, 
   Bar, 
@@ -171,15 +170,9 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col transition-colors duration-300">
-      {/* Dynamic Animated Background */}
-      <AnimatedBackground theme={theme} />
-      
-      {/* Structural Grid */}
-      <div className="fixed inset-0 bg-grid -z-10 pointer-events-none"></div>
-      
       {/* Background Ambience */}
-      <div className="fixed top-[-10%] right-[-10%] w-[60%] h-[60%] bg-brand-glow/10 rounded-full blur-[160px] -z-10 animate-pulse transition-colors duration-1000"></div>
-      <div className="fixed bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-brand-primary/10 rounded-full blur-[140px] -z-10 transition-colors duration-1000"></div>
+      <div className="fixed top-[-10%] right-[-10%] w-[50%] h-[50%] bg-brand-glow/5 rounded-full blur-[140px] -z-10 animate-pulse"></div>
+      <div className="fixed bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-tech/5 rounded-full blur-[120px] -z-10"></div>
 
       {/* Header */}
       <nav className="sticky top-0 z-50 glass-morphism border-b border-space-border/50 px-8 py-4">
