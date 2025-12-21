@@ -49,11 +49,11 @@ export const travelAgentService = {
     const prompt = `Act as an expert travel planner. Create an initial draft itinerary for a ${params.days}-day trip to ${params.destination} with a total budget of ₹${params.budget} (Indian Rupees).
     The user prefers: ${params.preferences.join(", ")}. 
     
-    IMPORTANT REQUIREMENTS:
-    1. Include at least 3-4 activities (Node Targets) per day to ensure a full experience.
-    2. Include realistic estimated costs in Indian Rupees (INR) for accommodation and activities. 
-    3. Ensure the costs reflect local prices or realistic travel expenses for an Indian traveler.
-    4. Explain your initial reasoning for selecting these locations and activities.`;
+      IMPORTANT REQUIREMENTS:
+      1. Include at least 3-4 activities per day to ensure a full experience.
+      2. Include realistic estimated costs in Indian Rupees (INR) for accommodation and activities. 
+      3. Ensure the costs reflect local prices or realistic travel expenses for an Indian traveler.
+      4. Explain your initial reasoning for selecting these locations and activities.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",

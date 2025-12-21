@@ -33,14 +33,14 @@ const ItineraryCard: React.FC<Props> = ({ dayPlan, currency }) => {
             {dayPlan.day}
           </div>
           <div>
-            <h4 className="font-black text-typo-primary text-2xl tracking-tighter leading-none">Phase {dayPlan.day} Activation</h4>
+            <h4 className="font-black text-typo-primary text-2xl tracking-tighter leading-none">Day {dayPlan.day} Schedule</h4>
             <div className="flex items-center gap-6 mt-2">
-              <span className="text-[11px] font-black text-typo-secondary uppercase tracking-[0.2em] flex items-center gap-2">
-                <Calendar size={14} className="text-brand-glow" /> {dayPlan.activities.length} Node Targets
-              </span>
-              <span className="text-[11px] font-black text-typo-secondary uppercase tracking-[0.2em] flex items-center gap-2">
-                <span className="text-brand-glow font-black">{currency} {dayPlan.dailyTotal.toLocaleString()} Cycle Burn</span>
-              </span>
+                <span className="text-[11px] font-black text-typo-secondary uppercase tracking-[0.2em] flex items-center gap-2">
+                  <Calendar size={14} className="text-brand-glow" /> {dayPlan.activities.length} Activities
+                </span>
+                <span className="text-[11px] font-black text-typo-secondary uppercase tracking-[0.2em] flex items-center gap-2">
+                  <span className="text-brand-glow font-black">{currency} {dayPlan.dailyTotal.toLocaleString()} Day Total</span>
+                </span>
             </div>
           </div>
         </div>

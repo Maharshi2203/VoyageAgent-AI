@@ -40,12 +40,12 @@ const App: React.FC = () => {
     return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   });
 
-  const [params, setParams] = useState<TripParams>({
-    destination: 'Kyoto, Japan',
-    budget: 250000,
-    days: 7,
-    preferences: [ActivityType.CULTURAL, ActivityType.FOOD, ActivityType.RELAXATION]
-  });
+    const [params, setParams] = useState<TripParams>({
+      destination: '',
+      budget: 0,
+      days: 3,
+      preferences: [ActivityType.CULTURAL, ActivityType.FOOD]
+    });
 
   const [isPlanning, setIsPlanning] = useState(false);
   const [logs, setLogs] = useState<AgentLog[]>([]);
@@ -88,9 +88,9 @@ const App: React.FC = () => {
     try {
       addLog('Research', `Initializing ${theme === 'dark' ? 'Sage-Space' : 'Nature-Core'} research for ${params.destination}...`);
       await new Promise(r => setTimeout(r, 1200));
-      addLog('Research', `AI successfully identified local nodes and high-affinity locations.`, 'success');
+      addLog('Research', `AI successfully identified local landmarks and high-affinity locations.`, 'success');
       
-      addLog('Drafting', `Drafting autonomous itinerary logic...`);
+      addLog('Drafting', `Drafting itinerary logic...`);
       const draftResult = await travelAgentService.draftPlan(params);
       addLog('Drafting', `Initial structure synthesized. Logical clustering complete.`, 'success', draftResult.reasoning);
       setActiveStep(2);
@@ -101,7 +101,7 @@ const App: React.FC = () => {
       const currentTotal = draftResult.data.days.reduce((acc, d) => acc + d.activities.reduce((sum, a) => sum + a.cost, 0) + d.accommodationCost, 0);
       
       if (currentTotal > params.budget) {
-        addLog('Validation', `Budget violation detected: Projected spend ₹${currentTotal.toLocaleString()} exceeds cap.`, 'warning');
+        addLog('Validation', `Budget violation detected: Projected spend ₹${currentTotal.toLocaleString()} exceeds budget.`, 'warning');
         addLog('Optimization', `Executing AI cost-balancing protocols...`);
       } else {
         addLog('Validation', `Budget validation: PASS.`, 'success');
@@ -116,7 +116,7 @@ const App: React.FC = () => {
       }
       
       setActiveStep(4);
-      addLog('Finalizing', `Rendering visual analytics and expedition manifest...`);
+      addLog('Finalizing', `Rendering visual analytics and plan manifest...`);
       await new Promise(r => setTimeout(r, 1200));
 
       const finalItinerary = {
@@ -130,7 +130,7 @@ const App: React.FC = () => {
       finalItinerary.remainingBudget = params.budget - finalItinerary.grandTotal;
 
       setItinerary(finalItinerary);
-      addLog('Finalizing', `Expedition Architecture for ${params.destination} ready for deployment.`, 'success');
+      addLog('Finalizing', `Trip Architecture for ${params.destination} ready.`, 'success');
       setActiveStep(5);
 
       setTimeout(() => {
@@ -147,8 +147,8 @@ const App: React.FC = () => {
 
   const exportItinerary = () => {
     if (!itinerary) return;
-    let text = `VOYAGEAGENT - EXPEDITION MANIFEST\n================================\n\n`;
-    text += `Target: ${itinerary.destination}\nDuration: ${itinerary.duration} Days\nCap: ₹${params.budget.toLocaleString()}\nTotal Cost: ₹${itinerary.grandTotal.toLocaleString()}\n\n`;
+    let text = `VOYAGEAGENT - TRIP MANIFEST\n================================\n\n`;
+    text += `Destination: ${itinerary.destination}\nDuration: ${itinerary.duration} Days\nBudget: ₹${params.budget.toLocaleString()}\nTotal Cost: ₹${itinerary.grandTotal.toLocaleString()}\n\n`;
     itinerary.days.forEach(day => {
       text += `PHASE ${day.day}\n----------------\nStay: ₹${day.accommodationCost.toLocaleString()}\n`;
       day.activities.forEach(a => text += `[${a.timeSlot}] ${a.name} (₹${a.cost.toLocaleString()}) - ${a.location}\n`);
@@ -230,7 +230,7 @@ const App: React.FC = () => {
               
               <div className="grid md:grid-cols-2 gap-10">
                 <div className="space-y-4">
-                  <label className="text-[11px] font-black text-brand-primary uppercase tracking-[0.2em] ml-1">Target Node</label>
+                    <label className="text-[11px] font-black text-brand-primary uppercase tracking-[0.2em] ml-1">Destination</label>
                   <div className="relative group">
                     <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 text-typo-muted group-focus-within:text-brand-glow transition-colors" size={22} />
                     <input 
@@ -244,37 +244,37 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-brand-primary uppercase tracking-[0.2em] ml-1">Capital (₹)</label>
-                    <div className="relative group">
-                      <Wallet className="absolute left-6 top-1/2 -translate-y-1/2 text-typo-muted group-focus-within:text-brand-glow transition-colors" size={22} />
-                      <input 
-                        type="number" 
-                        value={params.budget}
-                        onChange={e => setParams(p => ({ ...p, budget: Number(e.target.value) }))}
-                        className="w-full bg-space-secondary border-2 border-space-border focus:border-brand-glow rounded-2xl py-6 pl-16 pr-8 outline-none transition-all text-typo-primary font-bold"
-                      />
+                    <div className="space-y-4">
+                      <label className="text-[11px] font-black text-brand-primary uppercase tracking-[0.2em] ml-1">Budget (₹)</label>
+                      <div className="relative group">
+                        <Wallet className="absolute left-6 top-1/2 -translate-y-1/2 text-typo-muted group-focus-within:text-brand-glow transition-colors" size={22} />
+                        <input 
+                          type="number" 
+                          value={params.budget}
+                          onChange={e => setParams(p => ({ ...p, budget: Number(e.target.value) }))}
+                          className="w-full bg-space-secondary border-2 border-space-border focus:border-brand-glow rounded-2xl py-6 pl-16 pr-8 outline-none transition-all text-typo-primary font-bold"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-brand-primary uppercase tracking-[0.2em] ml-1">Cycles (Days)</label>
-                    <div className="relative group">
-                      <CalendarIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-typo-muted group-focus-within:text-brand-glow transition-colors" size={22} />
-                      <input 
-                        type="number" 
-                        value={params.days}
-                        min={1}
-                        max={14}
-                        onChange={e => setParams(p => ({ ...p, days: Number(e.target.value) }))}
-                        className="w-full bg-space-secondary border-2 border-space-border focus:border-brand-glow rounded-2xl py-6 pl-16 pr-8 outline-none transition-all text-typo-primary font-bold"
-                      />
+                    <div className="space-y-4">
+                      <label className="text-[11px] font-black text-brand-primary uppercase tracking-[0.2em] ml-1">Duration (Days)</label>
+                      <div className="relative group">
+                        <CalendarIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-typo-muted group-focus-within:text-brand-glow transition-colors" size={22} />
+                        <input 
+                          type="number" 
+                          value={params.days}
+                          min={1}
+                          max={14}
+                          onChange={e => setParams(p => ({ ...p, days: Number(e.target.value) }))}
+                          className="w-full bg-space-secondary border-2 border-space-border focus:border-brand-glow rounded-2xl py-6 pl-16 pr-8 outline-none transition-all text-typo-primary font-bold"
+                        />
+                      </div>
                     </div>
-                  </div>
                 </div>
               </div>
 
               <div className="mt-12 space-y-6">
-                <label className="text-[11px] font-black text-brand-primary uppercase tracking-[0.2em] ml-1">Expedition Signatures</label>
+                <label className="text-[11px] font-black text-brand-primary uppercase tracking-[0.2em] ml-1">Activity Preferences</label>
                 <div className="flex flex-wrap gap-4">
                   {Object.values(ActivityType).map(pref => (
                     <button
@@ -325,10 +325,10 @@ const App: React.FC = () => {
               </h3>
               <div className="space-y-8">
                 {[
-                  { id: 1, label: 'Geo-Signal Scan', desc: 'Regional node identification' },
-                  { id: 2, label: 'Fiscal Balancing', desc: 'Budget boundary validation' },
-                  { id: 3, label: 'Vector Optimization', desc: 'Experience flow architecting' },
-                  { id: 4, label: 'Manifest Output', desc: 'Finalizing visual render' },
+                  { id: 1, label: 'Destination Scan', desc: 'Location identification' },
+                  { id: 2, label: 'Budget Balancing', desc: 'Financial validation' },
+                  { id: 3, label: 'Plan Optimization', desc: 'Experience architecting' },
+                  { id: 4, label: 'Final Output', desc: 'Finalizing visual render' },
                 ].map((step) => (
                   <div key={step.id} className="flex items-start gap-6">
                     <div className={`mt-1 w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black flex-shrink-0 transition-all duration-500 border-2 ${
@@ -415,18 +415,18 @@ const App: React.FC = () => {
                     <Compass size={160} className="text-brand-glow" />
                   </div>
                   <h3 className="font-black text-2xl mb-10 tracking-tighter">Manifest Summary</h3>
-                  <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                      <span className="text-typo-muted text-xs font-black uppercase tracking-widest">Est. Burn</span>
-                      <span className="font-black text-2xl text-brand-primary">₹{itinerary.grandTotal.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-typo-muted text-xs font-black uppercase tracking-widest">Reserves</span>
-                      <span className={`font-black text-2xl ${itinerary.remainingBudget >= 0 ? 'text-brand-glow' : 'text-red-400'}`}>
-                        ₹{Math.abs(itinerary.remainingBudget).toLocaleString()}
-                        {itinerary.remainingBudget < 0 ? ' OVERRUN' : ''}
-                      </span>
-                    </div>
+                    <div className="space-y-6">
+                      <div className="flex justify-between items-center">
+                        <span className="text-typo-muted text-xs font-black uppercase tracking-widest">Est. Cost</span>
+                        <span className="font-black text-2xl text-brand-primary">₹{itinerary.grandTotal.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-typo-muted text-xs font-black uppercase tracking-widest">Remaining</span>
+                        <span className={`font-black text-2xl ${itinerary.remainingBudget >= 0 ? 'text-brand-glow' : 'text-red-400'}`}>
+                          ₹{Math.abs(itinerary.remainingBudget).toLocaleString()}
+                          {itinerary.remainingBudget < 0 ? ' OVERRUN' : ''}
+                        </span>
+                      </div>
                     <div className="h-[1px] bg-space-border my-8"></div>
                     <p className="text-typo-muted text-[11px] font-bold leading-relaxed italic uppercase tracking-wider">
                       "Autonomous simulations based on high-frequency market averages for {itinerary.destination}."
