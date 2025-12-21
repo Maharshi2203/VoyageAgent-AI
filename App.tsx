@@ -35,7 +35,7 @@ import {
 
 const App: React.FC = () => {
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('voyage-theme');
+    const saved = localStorage.getItem('voyageagent-shreypatel-theme');
     if (saved) return saved as 'dark' | 'light';
     return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   });
@@ -57,7 +57,7 @@ const App: React.FC = () => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(theme);
-    localStorage.setItem('voyage-theme', theme);
+    localStorage.setItem('voyageagent-shreypatel-theme', theme);
     
     // Smooth transition helper
     root.classList.add('theme-transition');
@@ -147,7 +147,7 @@ const App: React.FC = () => {
 
   const exportItinerary = () => {
     if (!itinerary) return;
-    let text = `VOYAGEAGENT - EXPEDITION MANIFEST\n================================\n\n`;
+    let text = `VOYAGEAGENT.AI-SHREYPATEL - EXPEDITION MANIFEST\n================================\n\n`;
     text += `Target: ${itinerary.destination}\nDuration: ${itinerary.duration} Days\nCap: ₹${params.budget.toLocaleString()}\nTotal Cost: ₹${itinerary.grandTotal.toLocaleString()}\n\n`;
     itinerary.days.forEach(day => {
       text += `PHASE ${day.day}\n----------------\nStay: ₹${day.accommodationCost.toLocaleString()}\n`;
@@ -158,7 +158,7 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Voyage_Manifest_${itinerary.destination.replace(/\s/g, '_')}.txt`;
+    link.download = `VoyageAgent_Shreypatel_Manifest_${itinerary.destination.replace(/\s/g, '_')}.txt`;
     link.click();
   };
 
@@ -182,9 +182,9 @@ const App: React.FC = () => {
               <Zap className="text-space-main" size={24} />
             </div>
             <div className="flex flex-col">
-              <span className="text-2xl font-black tracking-tighter text-typo-primary leading-none uppercase">
-                VOYAGE<span className="text-brand-glow">AGENT</span>
-              </span>
+                <span className="text-2xl font-black tracking-tighter text-typo-primary leading-none uppercase">
+                  VoyageAgent<span className="text-brand-glow">.Ai-Shreypatel</span>
+                </span>
               <span className="text-[10px] font-black uppercase tracking-[0.3em] text-typo-secondary">
                 Sage Intelligence Engine
               </span>
@@ -461,12 +461,12 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-space-border py-20 mt-20 bg-space-main">
         <div className="max-w-7xl mx-auto px-8 flex flex-col md:flex-row items-center justify-between gap-12">
-          <div className="flex items-center gap-5">
-            <div className="bg-brand-primary p-3 rounded-2xl shadow-md shadow-brand-primary/20">
-              <Plane size={24} className="text-space-main" />
+            <div className="flex items-center gap-5">
+              <div className="bg-brand-primary p-3 rounded-2xl shadow-md shadow-brand-primary/20">
+                <Plane size={24} className="text-space-main" />
+              </div>
+              <span className="font-black tracking-tighter text-typo-primary text-2xl uppercase">VoyageAgent<span className="text-brand-glow">.Ai-Shreypatel</span></span>
             </div>
-            <span className="font-black tracking-tighter text-typo-primary text-2xl uppercase">VOYAGE<span className="text-brand-glow">AGENT</span></span>
-          </div>
           <p className="text-typo-muted text-[11px] font-black uppercase tracking-[0.4em] text-center">
             Pioneering Autonomous Travel Intelligence. Powered by Sage.
           </p>
