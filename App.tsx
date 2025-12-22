@@ -53,6 +53,41 @@ const App: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const resultsRef = useRef<HTMLDivElement>(null);
 
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionRef.current && !suggestionRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchSuggestions = useCallback(async (input: string) => {
+    if (input.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    const results = await travelAgentService.getLocationSuggestions(input);
+    setSuggestions(results);
+    setShowSuggestions(results.length > 0);
+  }, []);
+
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const onDestinationChange = (value: string) => {
+    setParams(p => ({ ...p, destination: value }));
+    
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      fetchSuggestions(value);
+    }, 500);
+  };
+
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
@@ -229,19 +264,38 @@ const App: React.FC = () => {
               </div>
               
               <div className="grid md:grid-cols-2 gap-10">
-                <div className="space-y-4">
-                    <label className="text-[11px] font-black text-brand-primary uppercase tracking-[0.2em] ml-1">Destination</label>
-                  <div className="relative group">
-                    <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 text-typo-muted group-focus-within:text-brand-glow transition-colors" size={22} />
-                    <input 
-                      type="text" 
-                      value={params.destination}
-                      onChange={e => setParams(p => ({ ...p, destination: e.target.value }))}
-                      placeholder="e.g. Kyoto, Japan"
-                      className="w-full bg-space-secondary border-2 border-space-border focus:border-brand-glow rounded-2xl py-6 pl-16 pr-8 outline-none transition-all text-typo-primary font-bold placeholder:text-typo-muted"
-                    />
+                  <div className="space-y-4">
+                      <label className="text-[11px] font-black text-brand-primary uppercase tracking-[0.2em] ml-1">Destination</label>
+                    <div className="relative group" ref={suggestionRef}>
+                      <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 text-typo-muted group-focus-within:text-brand-glow transition-colors" size={22} />
+                      <input 
+                        type="text" 
+                        value={params.destination}
+                        onChange={e => onDestinationChange(e.target.value)}
+                        onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                        placeholder="e.g. Kyoto, Japan"
+                        className="w-full bg-space-secondary border-2 border-space-border focus:border-brand-glow rounded-2xl py-6 pl-16 pr-8 outline-none transition-all text-typo-primary font-bold placeholder:text-typo-muted"
+                      />
+                      
+                      {showSuggestions && (
+                        <div className="absolute top-[calc(100%+10px)] left-0 w-full glass-morphism border border-space-border rounded-2xl overflow-hidden z-[100] shadow-2xl animate-in fade-in slide-in-from-top-2 duration-300">
+                          {suggestions.map((suggestion, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => {
+                                setParams(p => ({ ...p, destination: suggestion }));
+                                setShowSuggestions(false);
+                              }}
+                              className="w-full text-left px-8 py-4 hover:bg-brand-primary/10 text-typo-primary font-bold text-sm transition-colors flex items-center gap-3 border-b border-space-border last:border-0"
+                            >
+                              <MapPin size={16} className="text-brand-glow" />
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
 
                 <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-4">

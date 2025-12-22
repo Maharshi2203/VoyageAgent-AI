@@ -114,5 +114,34 @@ export const travelAgentService = {
       adjustments: parsed.adjustments || [], 
       status: parsed.status as 'perfect' | 'adjusted' 
     };
+  },
+
+  /**
+   * Get location suggestions based on input
+   */
+  async getLocationSuggestions(input: string): Promise<string[]> {
+    if (!input || input.length < 2) return [];
+
+    const prompt = `Provide a list of 5 popular travel destination suggestions starting with or matching: "${input}". 
+    Format names as "City, Country". Respond with a JSON array of strings.`;
+
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          }
+        }
+      });
+
+      return JSON.parse(response.text);
+    } catch (error) {
+      console.error("Suggestion Error:", error);
+      return [];
+    }
   }
 };
