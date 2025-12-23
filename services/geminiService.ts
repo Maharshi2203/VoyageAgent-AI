@@ -7,9 +7,26 @@ const ITINERARY_SCHEMA = {
   type: Type.OBJECT,
   properties: {
     destination: { type: Type.STRING },
+    destinationCoords: {
+      type: Type.OBJECT,
+      properties: {
+        lat: { type: Type.NUMBER },
+        lng: { type: Type.NUMBER }
+      },
+      required: ["lat", "lng"]
+    },
     totalBudget: { type: Type.NUMBER },
     duration: { type: Type.NUMBER },
     currency: { type: Type.STRING },
+    weather: {
+      type: Type.OBJECT,
+      properties: {
+        temperature: { type: Type.STRING },
+        condition: { type: Type.STRING },
+        forecast: { type: Type.STRING }
+      },
+      required: ["temperature", "condition", "forecast"]
+    },
     days: {
       type: Type.ARRAY,
       items: {
@@ -29,8 +46,16 @@ const ITINERARY_SCHEMA = {
                 cost: { type: Type.NUMBER },
                 location: { type: Type.STRING },
                 activityType: { type: Type.STRING },
+                coordinates: {
+                  type: Type.OBJECT,
+                  properties: {
+                    lat: { type: Type.NUMBER },
+                    lng: { type: Type.NUMBER }
+                  },
+                  required: ["lat", "lng"]
+                }
               },
-              required: ["id", "name", "description", "timeSlot", "cost", "location", "activityType"]
+              required: ["id", "name", "description", "timeSlot", "cost", "location", "activityType", "coordinates"]
             }
           }
         },
@@ -38,7 +63,7 @@ const ITINERARY_SCHEMA = {
       }
     }
   },
-  required: ["destination", "totalBudget", "duration", "currency", "days"]
+  required: ["destination", "destinationCoords", "totalBudget", "duration", "currency", "days", "weather"]
 };
 
 export const travelAgentService = {
@@ -53,7 +78,9 @@ export const travelAgentService = {
       1. Include at least 3-4 activities per day to ensure a full experience.
       2. Include realistic estimated costs in Indian Rupees (INR) for accommodation and activities. 
       3. Ensure the costs reflect local prices or realistic travel expenses for an Indian traveler.
-      4. Explain your initial reasoning for selecting these locations and activities.`;
+      4. Provide precise Latitude and Longitude for the destination and EACH activity.
+      5. Include expected weather information (temperature, condition, forecast) for the location.
+      6. Explain your initial reasoning for selecting these locations and activities.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -86,7 +113,9 @@ export const travelAgentService = {
     2. Maintain 3-4 activities per day unless budget constraints make it impossible.
     3. Ensure activities are logically sequenced by location to save travel time.
     4. If budget is exceeded, replace expensive items with cheaper or free alternatives while maintaining quality.
-    5. Provide a list of adjustments made.
+    5. Ensure all items have Latitude and Longitude coordinates.
+    6. Ensure weather information is present.
+    7. Provide a list of adjustments made.
     `;
 
     const response = await ai.models.generateContent({

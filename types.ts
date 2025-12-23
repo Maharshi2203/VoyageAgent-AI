@@ -16,6 +16,16 @@ export interface Activity {
   cost: number;
   location: string;
   activityType: ActivityType;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+}
+
+export interface WeatherInfo {
+  temperature: string;
+  condition: string;
+  forecast: string;
 }
 
 export interface DayPlan {
@@ -26,13 +36,25 @@ export interface DayPlan {
 }
 
 export interface Itinerary {
+  id?: string;
   destination: string;
+  destinationCoords?: {
+    lat: number;
+    lng: number;
+  };
   totalBudget: number;
   duration: number;
   days: DayPlan[];
   grandTotal: number;
   remainingBudget: number;
   currency: string;
+  weather?: WeatherInfo;
+  actualExpenses?: {
+    id: string;
+    amount: number;
+    description: string;
+    date: Date;
+  }[];
 }
 
 export interface AgentLog {
