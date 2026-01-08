@@ -1,6 +1,6 @@
-# ✈️ Travel Agent AI: Autonomous Expedition Architect
+# ✈️ Voyage Agent AI: Autonomous Expedition Architect
 
-**Travel Agent AI** is a state-of-the-art, autonomous travel planning application powered by Google's Gemini 3 Pro. It goes beyond simple prompt-response by implementing a multi-step agentic workflow to research, architect, validate, and optimize travel itineraries based on precise fiscal constraints and user preferences.
+**Voyage Agent AI** is a state-of-the-art, autonomous travel planning application powered by Google's Gemini 3 Pro. It goes beyond simple prompt-response by implementing a multi-step agentic workflow to research, architect, validate, and optimize travel itineraries based on precise fiscal constraints and user preferences.
 
 ![App Status](https://img.shields.io/badge/Status-Operational-success?style=for-the-badge)
 ![AI Model](https://img.shields.io/badge/Neural_Core-Gemini_3_Pro-blueviolet?style=for-the-badge)
