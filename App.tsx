@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { TripParams, ActivityType, Itinerary, AgentLog } from './types';
 import { travelAgentService } from './services/geminiService';
+import { geminiRM, friendlyErrorMessage } from './services/geminiRequestManager';
 import AgentLogConsole from './components/AgentLogConsole';
 import BudgetGauge from './components/BudgetGauge';
 import ItineraryCard from './components/ItineraryCard';
@@ -56,6 +57,10 @@ const App: React.FC = () => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionRef = useRef<HTMLDivElement>(null);
+  // AbortController for in-flight suggestion requests — cancelled on each new keystroke
+  const suggestionAbortRef = useRef<AbortController | null>(null);
+  // AbortController for the main planning flow — cancelled if user restarts
+  const planAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -70,11 +75,19 @@ const App: React.FC = () => {
   const fetchSuggestions = useCallback(async (input: string) => {
     if (input.length < 2) {
       setSuggestions([]);
+      setShowSuggestions(false);
       return;
     }
-    const results = await travelAgentService.getLocationSuggestions(input);
-    setSuggestions(results);
-    setShowSuggestions(results.length > 0);
+    // Cancel the previous in-flight suggestion request before firing a new one
+    suggestionAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    suggestionAbortRef.current = ctrl;
+
+    const results = await travelAgentService.getLocationSuggestions(input, ctrl.signal);
+    if (!ctrl.signal.aborted) {
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+    }
   }, []);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -115,6 +128,12 @@ const App: React.FC = () => {
   };
 
   const runAgent = async () => {
+    // Cancel any previous in-flight planning run and queued requests
+    planAbortRef.current?.abort();
+    geminiRM.cancelAll();
+    const ctrl = new AbortController();
+    planAbortRef.current = ctrl;
+
     setIsPlanning(true);
     setLogs([]);
     setItinerary(null);
@@ -123,36 +142,43 @@ const App: React.FC = () => {
     try {
       addLog('Research', `Initializing ${theme === 'dark' ? 'Sage-Space' : 'Nature-Core'} research for ${params.destination}...`);
       await new Promise(r => setTimeout(r, 1200));
+      if (ctrl.signal.aborted) return;
       addLog('Research', `AI successfully identified local landmarks and high-affinity locations.`, 'success');
-      
+
       addLog('Drafting', `Drafting itinerary logic...`);
-      const draftResult = await travelAgentService.draftPlan(params);
+      const draftResult = await travelAgentService.draftPlan(params, ctrl.signal);
+      if (ctrl.signal.aborted) return;
       addLog('Drafting', `Initial structure synthesized. Logical clustering complete.`, 'success', draftResult.reasoning);
       setActiveStep(2);
 
       addLog('Validation', `Cross-referencing logistics with ₹${params.budget.toLocaleString()} constraints...`);
       await new Promise(r => setTimeout(r, 1000));
-      
-      const currentTotal = draftResult.data.days.reduce((acc, d) => acc + d.activities.reduce((sum, a) => sum + a.cost, 0) + d.accommodationCost, 0);
-      
+      if (ctrl.signal.aborted) return;
+
+      const currentTotal = draftResult.data.days.reduce(
+        (acc, d) => acc + d.activities.reduce((sum, a) => sum + a.cost, 0) + d.accommodationCost, 0
+      );
+
       if (currentTotal > params.budget) {
         addLog('Validation', `Budget violation detected: Projected spend ₹${currentTotal.toLocaleString()} exceeds budget.`, 'warning');
         addLog('Optimization', `Executing AI cost-balancing protocols...`);
       } else {
         addLog('Validation', `Budget validation: PASS.`, 'success');
       }
-      
+
       setActiveStep(3);
-      const optimizedResult = await travelAgentService.optimizePlan(params, draftResult.data);
-      
+      const optimizedResult = await travelAgentService.optimizePlan(params, draftResult.data, ctrl.signal);
+      if (ctrl.signal.aborted) return;
+
       if (optimizedResult.adjustments.length > 0) {
         optimizedResult.adjustments.forEach(adj => addLog('Optimization', adj, 'info'));
         addLog('Optimization', `Logistics refined for maximum transit efficiency.`, 'success');
       }
-      
+
       setActiveStep(4);
       addLog('Finalizing', `Rendering visual analytics and plan manifest...`);
       await new Promise(r => setTimeout(r, 1200));
+      if (ctrl.signal.aborted) return;
 
       const finalItinerary = {
         ...optimizedResult.data,
@@ -173,10 +199,13 @@ const App: React.FC = () => {
       }, 500);
 
     } catch (error) {
+      // Don't log cancellation errors – they are intentional
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('cancelled') || ctrl.signal.aborted) return;
       console.error(error);
-      addLog('Finalizing', `System Error: ${error instanceof Error ? error.message : 'Unknown Fault'}`, 'error');
+      addLog('Finalizing', friendlyErrorMessage(error), 'error');
     } finally {
-      setIsPlanning(false);
+      if (!ctrl.signal.aborted) setIsPlanning(false);
     }
   };
 
