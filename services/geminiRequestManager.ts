@@ -79,6 +79,30 @@ function is429(error: unknown): boolean {
   return msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
 }
 
+/**
+ * Returns true when the daily free-tier quota is exhausted.
+ * Per-day violations cannot be resolved by waiting 60s — retrying is pointless.
+ */
+function isDailyQuotaExhausted(error: unknown): boolean {
+  try {
+    const msg   = error instanceof Error ? error.message : String(error);
+    const start = msg.indexOf('{');
+    if (start === -1) return false;
+    const json       = JSON.parse(msg.substring(start));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const violations = (json?.error?.details as any[])?.find(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (d: any) => d['@type']?.includes('QuotaFailure'),
+    )?.violations ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return violations.some((v: any) =>
+      typeof v.quotaId === 'string' && v.quotaId.toLowerCase().includes('perday'),
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Convert a raw API error to a human-readable message. */
 export function friendlyErrorMessage(error: unknown): string {
   const msg = error instanceof Error ? error.message : String(error);
@@ -87,8 +111,10 @@ export function friendlyErrorMessage(error: unknown): string {
   if (msg.includes('API_KEY_INVALID') || msg.includes('401'))
     return 'Invalid API key. Replace it with a valid Gemini API key.';
   if (is429(error)) {
+    if (isDailyQuotaExhausted(error))
+      return '🚫 Daily free-tier quota exhausted for this API key. Please wait until tomorrow (quota resets at midnight PT), or add a new API key from a different Google account in .env.local.';
     const secs = Math.ceil(parseRetryDelayMs(error) / 1000);
-    return `Free-tier quota reached. Retrying automatically in ~${secs}s. If this persists, please wait a minute.`;
+    return `⏳ Rate limit hit. Retrying automatically in ~${secs}s…`;
   }
   if (msg.includes('503') || msg.includes('UNAVAILABLE'))
     return 'Gemini service is temporarily unavailable. Please try again shortly.';
@@ -167,15 +193,24 @@ class GeminiRequestManager {
   private async drain(): Promise<void> {
     if (this.busy || this.queue.length === 0) return;
     this.busy = true;
-    while (this.queue.length > 0) {
-      const item = this.queue.shift()!;
-      if (item.abortController.signal.aborted) {
-        item.reject(new Error('cancelled'));
-        continue;
+    try {
+      while (this.queue.length > 0) {
+        const item = this.queue.shift()!;
+        if (item.abortController.signal.aborted) {
+          item.reject(new Error('cancelled'));
+          continue;
+        }
+        await this.execute(item, 1);
       }
-      await this.execute(item, 1);
+    } catch (unexpectedErr) {
+      // Safety net: execute() should never throw (it calls item.reject internally),
+      // but if it somehow does, log it and keep the drain loop alive.
+      console.error('[GeminiRM] Unexpected drain error:', unexpectedErr);
+    } finally {
+      this.busy = false;
+      // If items were added while we were processing, resume.
+      if (this.queue.length > 0) this.drain().catch(() => {});
     }
-    this.busy = false;
   }
 
   private async execute(item: QueueItem, attempt: number): Promise<void> {
@@ -196,7 +231,9 @@ class GeminiRequestManager {
       item.resolve(text);
 
     } catch (err) {
-      if (is429(err) && attempt <= MAX_RETRIES) {
+      // Daily quota exhausted → retrying is pointless, fail immediately
+      const daily = isDailyQuotaExhausted(err);
+      if (is429(err) && !daily && attempt <= MAX_RETRIES) {
         const delay = parseRetryDelayMs(err) * attempt; // exponential
         this.log('RETRY', key, `attempt ${attempt}/${MAX_RETRIES}, wait ${Math.ceil(delay / 1000)}s`);
         console.warn(`[GeminiRM] 429 – retrying in ${Math.ceil(delay / 1000)}s (attempt ${attempt}/${MAX_RETRIES})`);
@@ -209,7 +246,12 @@ class GeminiRequestManager {
         }
         await this.execute(item, attempt + 1);
       } else {
-        this.log('ERROR', key, String(err).slice(0, 120));
+        if (daily) {
+          this.log('DAILY_LIMIT', key, 'Daily quota exhausted – skipping retries');
+          console.error('[GeminiRM] Daily free-tier quota exhausted. Retrying will not help until quota resets.');
+        } else {
+          this.log('ERROR', key, String(err).slice(0, 120));
+        }
         item.reject(err);
       }
     }
