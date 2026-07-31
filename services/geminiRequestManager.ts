@@ -127,17 +127,52 @@ export function friendlyErrorMessage(error: unknown): string {
 
 // ─── GeminiRequestManager ─────────────────────────────────────────────────────
 
+/** Collect all API keys from env: VITE_GEMINI_API_KEY, VITE_GEMINI_API_KEY_2, … */
+function loadApiKeys(): string[] {
+  const env = (import.meta as { env: Record<string, string> }).env;
+  const keys: string[] = [];
+  const primary = env.VITE_GEMINI_API_KEY;
+  if (primary) keys.push(primary);
+  for (let i = 2; i <= 10; i++) {
+    const k = env[`VITE_GEMINI_API_KEY_${i}`];
+    if (k) keys.push(k);
+  }
+  return keys;
+}
+
 class GeminiRequestManager {
+  private keys: string[];
+  private keyIndex = 0;
   private ai: GoogleGenAI;
+  private exhaustedKeys = new Set<string>();
   private cache    = new Map<string, CacheEntry>();
   private pending  = new Map<string, Promise<string>>();
   private queue: QueueItem[] = [];
   private busy     = false;
 
   constructor() {
-    this.ai = new GoogleGenAI({
-      apiKey: (import.meta as { env: Record<string, string> }).env.VITE_GEMINI_API_KEY ?? '',
-    });
+    this.keys = loadApiKeys();
+    if (this.keys.length === 0) {
+      console.warn('[GeminiRM] No API keys found. Set VITE_GEMINI_API_KEY in .env.local.');
+      this.keys = [''];
+    }
+    this.ai = new GoogleGenAI({ apiKey: this.keys[0] });
+    console.debug(`[GeminiRM] Loaded ${this.keys.length} API key(s).`);
+  }
+
+  /** Rotate to the next non-exhausted key. Returns true if a new key is available. */
+  private rotateKey(): boolean {
+    const exhausted = this.keys[this.keyIndex];
+    this.exhaustedKeys.add(exhausted);
+    const nextIndex = this.keys.findIndex((k, i) => i !== this.keyIndex && !this.exhaustedKeys.has(k));
+    if (nextIndex === -1) {
+      console.error('[GeminiRM] All API keys have exhausted their daily quota.');
+      return false;
+    }
+    this.keyIndex = nextIndex;
+    this.ai = new GoogleGenAI({ apiKey: this.keys[this.keyIndex] });
+    console.warn(`[GeminiRM] Daily quota hit – rotated to API key #${this.keyIndex + 1}.`);
+    return true;
   }
 
   // ── Public ──────────────────────────────────────────────────────────────────
@@ -231,10 +266,25 @@ class GeminiRequestManager {
       item.resolve(text);
 
     } catch (err) {
-      // Daily quota exhausted → retrying is pointless, fail immediately
       const daily = isDailyQuotaExhausted(err);
-      if (is429(err) && !daily && attempt <= MAX_RETRIES) {
-        const delay = parseRetryDelayMs(err) * attempt; // exponential
+
+      // Daily quota exhausted → try rotating to the next API key
+      if (is429(err) && daily) {
+        this.log('DAILY_LIMIT', key, `Key #${this.keyIndex + 1} exhausted – attempting key rotation`);
+        if (this.rotateKey()) {
+          // Retry the same request with the new key
+          await this.execute(item, attempt);
+          return;
+        }
+        // No more keys available
+        this.log('NO_KEYS', key, 'All API keys exhausted');
+        item.reject(err);
+        return;
+      }
+
+      // Rate limit (429 but not daily) → exponential backoff retry
+      if (is429(err) && attempt <= MAX_RETRIES) {
+        const delay = parseRetryDelayMs(err) * attempt;
         this.log('RETRY', key, `attempt ${attempt}/${MAX_RETRIES}, wait ${Math.ceil(delay / 1000)}s`);
         console.warn(`[GeminiRM] 429 – retrying in ${Math.ceil(delay / 1000)}s (attempt ${attempt}/${MAX_RETRIES})`);
 
@@ -246,12 +296,7 @@ class GeminiRequestManager {
         }
         await this.execute(item, attempt + 1);
       } else {
-        if (daily) {
-          this.log('DAILY_LIMIT', key, 'Daily quota exhausted – skipping retries');
-          console.error('[GeminiRM] Daily free-tier quota exhausted. Retrying will not help until quota resets.');
-        } else {
-          this.log('ERROR', key, String(err).slice(0, 120));
-        }
+        this.log('ERROR', key, String(err).slice(0, 120));
         item.reject(err);
       }
     }
