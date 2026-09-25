@@ -10,7 +10,7 @@ import { Type } from "@google/genai";
 import { TripParams, Itinerary } from "../types";
 import { geminiRM } from "./geminiRequestManager";
 
-const MODEL = "gemini-2.0-flash";
+const MODEL = "gemini-3.6-flash";
 
 const ITINERARY_SCHEMA = {
   type: Type.OBJECT,

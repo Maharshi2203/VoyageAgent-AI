@@ -110,6 +110,8 @@ export function friendlyErrorMessage(error: unknown): string {
     return 'API key permission denied. Check your API key in .env.local.';
   if (msg.includes('API_KEY_INVALID') || msg.includes('401'))
     return 'Invalid API key. Replace it with a valid Gemini API key.';
+  if (msg.includes('404') || msg.includes('no longer available'))
+    return 'The requested Gemini model is no longer available. Switched to gemini-3.6-flash.';
   if (is429(error)) {
     if (isDailyQuotaExhausted(error))
       return '🚫 Daily free-tier quota exhausted for this API key. Please wait until tomorrow (quota resets at midnight PT), or add a new API key from a different Google account in .env.local.';
@@ -266,6 +268,18 @@ class GeminiRequestManager {
       item.resolve(text);
 
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const is404 = msg.includes('404') || msg.includes('no longer available') || msg.includes('NOT_FOUND');
+
+      // Model retired/unavailable (404) -> Fall back to active model gemini-3.6-flash
+      if (is404 && item.options.model !== 'gemini-3.6-flash') {
+        this.log('FALLBACK', key, `Model ${item.options.model} returned 404. Retrying with gemini-3.6-flash`);
+        console.warn(`[GeminiRM] Model ${item.options.model} is deprecated/unavailable. Falling back to gemini-3.6-flash.`);
+        item.options.model = 'gemini-3.6-flash';
+        await this.execute(item, attempt);
+        return;
+      }
+
       const daily = isDailyQuotaExhausted(err);
 
       // Daily quota exhausted → try rotating to the next API key
