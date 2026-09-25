@@ -15,10 +15,14 @@ import {
   Wind,
   Zap,
   Moon,
-  Sun
+  Sun,
+  LogOut,
+  Database
 } from 'lucide-react';
-import { TripParams, ActivityType, Itinerary, AgentLog } from './types';
+import { TripParams, ActivityType, Itinerary, AgentLog, User } from './types';
+import { AuthPage } from './components/AuthPage';
 import { travelAgentService } from './services/geminiService';
+import { databaseService, SavedTrip } from './services/databaseService';
 import { geminiRM, friendlyErrorMessage } from './services/geminiRequestManager';
 import AgentLogConsole from './components/AgentLogConsole';
 import BudgetGauge from './components/BudgetGauge';
@@ -40,6 +44,24 @@ const App: React.FC = () => {
     if (saved) return saved as 'dark' | 'light';
     return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   });
+
+  const [user, setUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('voyage_user');
+    if (saved) {
+      try { return JSON.parse(saved); } catch { return null; }
+    }
+    return null;
+  });
+
+  const handleLogin = (u: User) => {
+    setUser(u);
+    localStorage.setItem('voyage_user', JSON.stringify(u));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('voyage_user');
+  };
 
     const [params, setParams] = useState<TripParams>({
       destination: '',
@@ -192,6 +214,13 @@ const App: React.FC = () => {
 
       setItinerary(finalItinerary);
       addLog('Finalizing', `Trip Architecture for ${params.destination} ready.`, 'success');
+      
+      // Auto-save to Database (Supabase / LocalStorage)
+      if (user) {
+        databaseService.saveItinerary(user.id, finalItinerary);
+        addLog('Finalizing', `Expedition manifest saved to database.`, 'info');
+      }
+
       setActiveStep(5);
 
       setTimeout(() => {
@@ -232,6 +261,10 @@ const App: React.FC = () => {
     Stay: d.accommodationCost
   })) : [];
 
+  if (!user) {
+    return <AuthPage onLogin={handleLogin} theme={theme} toggleTheme={toggleTheme} />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col transition-colors duration-300">
       {/* Background Ambience */}
@@ -254,7 +287,25 @@ const App: React.FC = () => {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-6 md:gap-8">
+          <div className="flex items-center gap-4 md:gap-6">
+            {/* User Profile Badge */}
+            <div className="flex items-center gap-3 bg-space-secondary px-3.5 py-1.5 rounded-2xl border border-space-border">
+              <div className="w-8 h-8 rounded-xl bg-brand-primary text-space-main font-black text-xs flex items-center justify-center shadow-md">
+                {user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+              </div>
+              <div className="hidden sm:flex flex-col">
+                <span className="text-xs font-black text-typo-primary leading-tight">{user.name}</span>
+                <span className="text-[10px] text-typo-secondary font-medium">{user.email}</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-xl text-typo-secondary hover:text-red-500 hover:bg-red-500/10 transition-all ml-1"
+                title="Sign Out"
+              >
+                <LogOut size={16} />
+              </button>
+            </div>
+
             <button 
               onClick={toggleTheme}
               className="p-3 rounded-2xl bg-space-secondary border border-space-border text-brand-primary hover:bg-space-card transition-all transform active:scale-90"
@@ -262,7 +313,9 @@ const App: React.FC = () => {
             >
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
+
             <div className="h-8 w-[1px] bg-space-border hidden md:block"></div>
+
             <button 
               onClick={exportItinerary}
               disabled={!itinerary}
@@ -307,7 +360,7 @@ const App: React.FC = () => {
                       />
                       
                       {showSuggestions && (
-                        <div className="absolute top-[calc(100%+10px)] left-0 w-full glass-morphism border border-space-border rounded-2xl overflow-hidden z-[100] shadow-2xl animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="absolute top-[calc(100%+10px)] left-0 w-full bg-space-card border-2 border-space-border rounded-2xl overflow-hidden z-[100] shadow-2xl animate-in fade-in slide-in-from-top-2 duration-300">
                           {suggestions.map((suggestion, idx) => (
                             <button
                               key={idx}
@@ -315,7 +368,7 @@ const App: React.FC = () => {
                                 setParams(p => ({ ...p, destination: suggestion }));
                                 setShowSuggestions(false);
                               }}
-                              className="w-full text-left px-8 py-4 hover:bg-brand-primary/10 text-typo-primary font-bold text-sm transition-colors flex items-center gap-3 border-b border-space-border last:border-0"
+                              className="w-full text-left px-8 py-4 bg-space-card hover:bg-brand-primary/10 text-typo-primary font-bold text-sm transition-colors flex items-center gap-3 border-b border-space-border last:border-0"
                             >
                               <MapPin size={16} className="text-brand-glow" />
                               {suggestion}

@@ -1,4 +1,11 @@
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+}
+
 export enum ActivityType {
   ADVENTURE = 'adventure',
   CULTURAL = 'cultural',
