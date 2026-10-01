@@ -40,13 +40,14 @@ const BudgetGauge: React.FC<Props> = ({ total, spent, currency }) => {
               innerRadius={75}
               outerRadius={95}
               paddingAngle={10}
+              cornerRadius={12}
               dataKey="value"
               startAngle={225}
               endAngle={-45}
               stroke="none"
             >
-              <Cell fill={getGlowColor()} cornerRadius={12} />
-              <Cell fill="var(--space-secondary)" cornerRadius={12} />
+              <Cell fill={getGlowColor()} />
+              <Cell fill="var(--space-secondary)" />
             </Pie>
           </PieChart>
         </ResponsiveContainer>

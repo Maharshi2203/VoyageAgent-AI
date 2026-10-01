@@ -69,18 +69,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin, theme, toggleTheme 
     }
   };
 
-  const handleQuickDemo = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      onLogin({
-        id: 'usr_demo_77',
-        name: 'Captain Alex Vance',
-        email: 'alex.vance@voyageagent.ai'
-      });
-    }, 500);
-  };
-
   return (
     <div className="min-h-screen flex flex-col justify-between relative overflow-hidden bg-space-main text-typo-primary transition-colors duration-300">
       {/* Dynamic Background Ambience */}
@@ -276,24 +264,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin, theme, toggleTheme 
               </button>
             </form>
 
-            <div className="relative my-6 text-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-space-border"></div>
-              </div>
-              <span className="relative px-4 text-[10px] uppercase font-black tracking-widest text-typo-muted bg-space-card">
-                Fast Evaluation Access
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleQuickDemo}
-              disabled={isLoading}
-              className="w-full py-3.5 rounded-2xl bg-space-secondary border-2 border-space-border hover:border-brand-glow text-typo-primary text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover:bg-brand-primary/5"
-            >
-              <Zap size={16} className="text-brand-glow" />
-              <span>Quick Demo Login</span>
-            </button>
           </div>
         </div>
 
