@@ -15,7 +15,8 @@ import {
   MapPin,
   Tag
 } from 'lucide-react';
-import { Trip, BookingItem, BookingType, BookingStatus } from '../../types';
+import { Trip, BookingItem, BookingType, BookingStatus, User } from '../../types';
+import { notificationService } from '../../services/email/notificationService';
 
 interface TripBookingsTabProps {
   trip: Trip;
@@ -78,6 +79,15 @@ export const TripBookingsTab: React.FC<TripBookingsTabProps> = ({
       bookings: [...prev.bookings, newBooking]
     }));
 
+    // Trigger real-time booking confirmation email
+    const ownerMember = trip.members.find(m => m.role === 'owner') || trip.members[0];
+    const userObj: User = {
+      id: trip.userId,
+      name: ownerMember?.name || 'Explorer',
+      email: ownerMember?.email || 'traveler@voyage.ai'
+    };
+    notificationService.sendBookingConfirmation(userObj, trip, newBooking);
+
     // Reset
     setNewTitle('');
     setNewProvider('');
@@ -88,6 +98,17 @@ export const TripBookingsTab: React.FC<TripBookingsTabProps> = ({
   };
 
   const handleDeleteBooking = (id: string) => {
+    const target = trip.bookings.find(b => b.id === id);
+    if (target) {
+      const ownerMember = trip.members.find(m => m.role === 'owner') || trip.members[0];
+      const userObj: User = {
+        id: trip.userId,
+        name: ownerMember?.name || 'Explorer',
+        email: ownerMember?.email || 'traveler@voyage.ai'
+      };
+      notificationService.sendBookingCancellation(userObj, trip, target);
+    }
+
     onUpdateTrip(prev => ({
       ...prev,
       bookings: prev.bookings.filter(b => b.id !== id)

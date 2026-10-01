@@ -3,6 +3,7 @@ import { Zap, Sparkles, Mail, Lock, User, ArrowRight, Eye, EyeOff, ShieldCheck, 
 import { User as UserType } from '../types';
 
 import { databaseService } from '../services/databaseService';
+import { notificationService } from '../services/email/notificationService';
 
 interface AuthPageProps {
   onLogin: (user: UserType) => void;
@@ -50,6 +51,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin, theme, toggleTheme 
         const res = await databaseService.signUpUser(name, email, password);
         setIsLoading(false);
         if (res.success && res.user) {
+          // Trigger automated Welcome Email
+          notificationService.sendWelcomeEmail(res.user);
           onLogin(res.user);
         } else {
           setError(res.error || 'Failed to create account.');
@@ -58,6 +61,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin, theme, toggleTheme 
         const res = await databaseService.signInUser(email, password);
         setIsLoading(false);
         if (res.success && res.user) {
+          // Trigger Login Alert (with 30-min throttle protection)
+          notificationService.sendLoginAlert(res.user);
           onLogin(res.user);
         } else {
           setError(res.error || 'Invalid email or password.');

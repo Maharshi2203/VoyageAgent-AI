@@ -8,7 +8,9 @@ import {
   Sparkles, 
   ShieldCheck, 
   Save,
-  Check
+  Check,
+  Mail,
+  Bell
 } from 'lucide-react';
 import { User } from '../types';
 
@@ -17,13 +19,15 @@ interface UserProfileViewProps {
   tripsCount: number;
   savedPlacesCount: number;
   onUpdateUser: (updated: User) => void;
+  onOpenPreferences?: () => void;
 }
 
 export const UserProfileView: React.FC<UserProfileViewProps> = ({
   user,
   tripsCount,
   savedPlacesCount,
-  onUpdateUser
+  onUpdateUser,
+  onOpenPreferences
 }) => {
   const [name, setName] = useState(user.name);
   const [bio, setBio] = useState(user.bio || 'Curious nomad exploring ancient shrines, remote coastlines, and artisan bakeries.');
@@ -97,6 +101,36 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             <span className="text-2xl font-black text-typo-primary">{savedPlacesCount}</span>
           </div>
         </div>
+      </div>
+
+      {/* Verified Email & Dispatch Preferences Banner */}
+      <div className="bg-space-card rounded-[2.5rem] p-6 sm:p-8 border border-space-border shadow-xl flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 border border-brand-primary/30 flex items-center justify-center text-brand-primary shrink-0">
+            <Mail size={22} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-base font-black text-typo-primary">{user.email}</span>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-black uppercase flex items-center gap-1">
+                <ShieldCheck size={12} /> Verified
+              </span>
+            </div>
+            <p className="text-xs text-typo-secondary mt-1">
+              Registered address for automated login notifications, booking tickets, trip manifests, and personalized offers.
+            </p>
+          </div>
+        </div>
+
+        {onOpenPreferences && (
+          <button
+            onClick={onOpenPreferences}
+            className="px-5 py-2.5 rounded-2xl bg-space-secondary hover:bg-space-secondary/80 border border-space-border text-typo-primary hover:text-brand-glow text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2"
+          >
+            <Bell size={14} className="text-brand-primary" />
+            <span>Email Preferences</span>
+          </button>
+        )}
       </div>
 
       {/* Edit Form */}

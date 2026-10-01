@@ -20,6 +20,9 @@ import { PersonalTravelMapView } from './components/PersonalTravelMapView';
 import { UserProfileView } from './components/UserProfileView';
 import { AITripPlannerModal } from './components/AITripPlannerModal';
 import { TripWorkspace } from './components/TripWorkspace/TripWorkspace';
+import { EmailPreferencesModal } from './components/EmailPreferencesModal';
+import { notificationService } from './services/email/notificationService';
+import { offerMatchingService } from './services/email/offerMatchingService';
 
 export const App: React.FC = () => {
   // Theme state with smooth transitions
@@ -63,6 +66,21 @@ export const App: React.FC = () => {
   const [plannerPrompt, setPlannerPrompt] = useState<string | undefined>(undefined);
   const [plannerDestination, setPlannerDestination] = useState<string | undefined>(undefined);
 
+  // Email Preferences Modal State
+  const [isEmailPreferencesOpen, setIsEmailPreferencesOpen] = useState(false);
+
+  // Automated Personalized Travel Offers Engine (Respects frequency caps and deduplication)
+  useEffect(() => {
+    if (user && trips.length > 0) {
+      offerMatchingService.matchOffersForUser(user, trips).then(({ matchedOffers }) => {
+        matchedOffers.forEach(m => {
+          notificationService.sendOfferEmail(user, m.offer, m.trip);
+          offerMatchingService.recordOfferSent(user.id, m.offer.id, m.trip?.id, m.reason);
+        });
+      });
+    }
+  }, [user?.id, trips.length]);
+
   // Load User Data
   const loadUserData = useCallback(async (u: User) => {
     const userTrips = await databaseService.getUserFullTrips(u.id);
@@ -102,6 +120,12 @@ export const App: React.FC = () => {
     setTrips(prev => [newTrip, ...prev.filter(t => t.id !== newTrip.id)]);
     setActiveTripId(newTrip.id);
     setCurrentRoute('trip');
+
+    if (user) {
+      // Automatically send TRIP_CREATED and AI_TRIP_GENERATED emails
+      notificationService.sendTripCreated(user, newTrip);
+      notificationService.sendAITripGenerated(user, newTrip);
+    }
   };
 
   const handleUpdateTrip = async (updater: (t: Trip) => Trip) => {
@@ -290,6 +314,7 @@ export const App: React.FC = () => {
               setUser(updated);
               localStorage.setItem('voyage_user', JSON.stringify(updated));
             }}
+            onOpenPreferences={() => setIsEmailPreferencesOpen(true)}
           />
         )}
 
@@ -306,14 +331,22 @@ export const App: React.FC = () => {
 
       {/* AI Trip Planner Studio Modal */}
       {user && (
-        <AITripPlannerModal 
-          isOpen={isAIPlannerOpen}
-          onClose={() => setIsAIPlannerOpen(false)}
-          onTripGenerated={handleCreateTrip}
-          initialPrompt={plannerPrompt}
-          initialDestination={plannerDestination}
-          userId={user.id}
-        />
+        <>
+          <AITripPlannerModal 
+            isOpen={isAIPlannerOpen}
+            onClose={() => setIsAIPlannerOpen(false)}
+            onTripGenerated={handleCreateTrip}
+            initialPrompt={plannerPrompt}
+            initialDestination={plannerDestination}
+            userId={user.id}
+          />
+
+          <EmailPreferencesModal 
+            isOpen={isEmailPreferencesOpen}
+            onClose={() => setIsEmailPreferencesOpen(false)}
+            user={user}
+          />
+        </>
       )}
 
       {/* Global Footer */}

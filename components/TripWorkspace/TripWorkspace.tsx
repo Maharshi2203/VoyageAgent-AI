@@ -16,9 +16,12 @@ import {
   FileText, 
   BookOpen, 
   Users,
-  Film
+  Film,
+  Mail,
+  Check
 } from 'lucide-react';
-import { Trip, Activity } from '../../types';
+import { Trip, Activity, User } from '../../types';
+import { notificationService } from '../../services/email/notificationService';
 import { TripOverviewTab } from './TripOverviewTab';
 import { TripItineraryTab } from './TripItineraryTab';
 import { TripMapTab } from './TripMapTab';
@@ -63,6 +66,26 @@ export const TripWorkspace: React.FC<TripWorkspaceProps> = ({
     { id: 'journal', label: 'Journal', icon: <BookOpen size={15} /> },
     { id: 'people', label: 'People', icon: <Users size={15} /> }
   ];
+
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSentSuccess, setEmailSentSuccess] = useState(false);
+
+  const handleSendEmailSummary = async () => {
+    setEmailSending(true);
+    try {
+      const ownerMember = trip.members.find(m => m.role === 'owner') || trip.members[0];
+      const userObj: User = {
+        id: trip.userId,
+        name: ownerMember?.name || 'Explorer',
+        email: ownerMember?.email || 'traveler@voyage.ai'
+      };
+      await notificationService.sendTripSummary(userObj, trip);
+      setEmailSentSuccess(true);
+      setTimeout(() => setEmailSentSuccess(false), 3000);
+    } finally {
+      setEmailSending(false);
+    }
+  };
 
   const handleExportManifest = () => {
     let text = `VOYAGEAGENT TRIP MANIFEST\n================================\n\n`;
@@ -111,6 +134,27 @@ export const TripWorkspace: React.FC<TripWorkspaceProps> = ({
 
             {/* Quick Actions */}
             <div className="flex items-center gap-2.5">
+              <button
+                onClick={handleSendEmailSummary}
+                disabled={emailSending}
+                className="px-3.5 py-1.5 rounded-xl bg-space-card hover:bg-space-secondary border border-space-border text-xs font-bold text-typo-primary flex items-center gap-1.5 transition-colors"
+                title="Send complete trip summary to your registered email"
+              >
+                {emailSentSuccess ? (
+                  <>
+                    <Check size={14} className="text-emerald-400" />
+                    <span className="text-emerald-400">Emailed!</span>
+                  </>
+                ) : emailSending ? (
+                  <span>Sending...</span>
+                ) : (
+                  <>
+                    <Mail size={14} className="text-brand-primary" />
+                    <span>Email Summary</span>
+                  </>
+                )}
+              </button>
+
               <button
                 onClick={() => setIsReelOpen(true)}
                 className="px-3.5 py-1.5 rounded-xl bg-space-card hover:bg-space-secondary border border-space-border text-xs font-bold text-typo-primary flex items-center gap-1.5 transition-colors"

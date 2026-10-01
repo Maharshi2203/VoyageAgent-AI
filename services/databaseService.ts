@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { Itinerary, User, Trip, SavedPlace, CommunityTripTemplate, DestinationGuide, TripMember } from '../types';
+import { Itinerary, User, Trip, SavedPlace, CommunityTripTemplate, DestinationGuide, TripMember, NotificationPreference, InAppNotification, EmailLog, OfferMatch } from '../types';
 import { INITIAL_COMMUNITY_TEMPLATES, CURATED_DESTINATIONS } from './mockData';
 
 export interface SavedTrip {
@@ -445,5 +445,202 @@ export const databaseService = {
 
   async deleteItinerary(userId: string, tripId: string): Promise<boolean> {
     return this.deleteFullTrip(userId, tripId);
+  },
+
+  // ─── NOTIFICATION PREFERENCES ─────────────────────────────────────
+
+  async getNotificationPreferences(userId: string): Promise<NotificationPreference> {
+    const key = `voyage_notification_prefs_${userId}`;
+    const defaultPrefs: NotificationPreference = {
+      emailVerified: true,
+      emailNotificationsEnabled: true,
+      marketingEmailsEnabled: true,
+      travelAlertsEnabled: true,
+      bookingNotificationsEnabled: true,
+      loginAlertsEnabled: true,
+      itineraryUpdatesEnabled: true,
+      offersEnabled: true,
+      digestFrequency: 'instant',
+      maxOffersPerWeek: 2
+    };
+
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        return { ...defaultPrefs, ...JSON.parse(raw) };
+      }
+      return defaultPrefs;
+    } catch {
+      return defaultPrefs;
+    }
+  },
+
+  async saveNotificationPreferences(userId: string, prefs: Partial<NotificationPreference>): Promise<NotificationPreference> {
+    const current = await this.getNotificationPreferences(userId);
+    const updated = { ...current, ...prefs };
+    try {
+      localStorage.setItem(`voyage_notification_prefs_${userId}`, JSON.stringify(updated));
+    } catch (err) {
+      console.warn('Could not save notification preferences:', err);
+    }
+    return updated;
+  },
+
+  // ─── IN-APP NOTIFICATIONS ──────────────────────────────────────────
+
+  async getInAppNotifications(userId: string): Promise<InAppNotification[]> {
+    const key = `voyage_inapp_notifications_${userId}`;
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) return JSON.parse(raw);
+
+      // Default welcome notification if empty
+      const initial: InAppNotification[] = [
+        {
+          id: `notif_welcome_${userId}`,
+          userId,
+          eventType: 'USER_REGISTERED' as any,
+          title: 'Welcome to VoyageAgent AI 🌍',
+          message: 'Your AI travel companion is ready. Plan trips, track budgets, and manage bookings seamlessly.',
+          read: false,
+          createdAt: new Date().toISOString()
+        }
+      ];
+      localStorage.setItem(key, JSON.stringify(initial));
+      return initial;
+    } catch {
+      return [];
+    }
+  },
+
+  async addInAppNotification(notification: InAppNotification): Promise<InAppNotification> {
+    const key = `voyage_inapp_notifications_${notification.userId}`;
+    try {
+      const list = await this.getInAppNotifications(notification.userId);
+      list.unshift(notification);
+      // Keep up to 50 notifications
+      if (list.length > 50) list.length = 50;
+      localStorage.setItem(key, JSON.stringify(list));
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('voyage_notification_received', { detail: notification }));
+      }
+    } catch (err) {
+      console.warn('Could not save in-app notification:', err);
+    }
+    return notification;
+  },
+
+  async markNotificationRead(id: string, userId: string): Promise<boolean> {
+    const key = `voyage_inapp_notifications_${userId}`;
+    try {
+      const list = await this.getInAppNotifications(userId);
+      const found = list.find(n => n.id === id);
+      if (found) {
+        found.read = true;
+        localStorage.setItem(key, JSON.stringify(list));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('voyage_notifications_updated'));
+        }
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  },
+
+  async markAllNotificationsRead(userId: string): Promise<boolean> {
+    const key = `voyage_inapp_notifications_${userId}`;
+    try {
+      const list = await this.getInAppNotifications(userId);
+      list.forEach(n => { n.read = true; });
+      localStorage.setItem(key, JSON.stringify(list));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('voyage_notifications_updated'));
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  // ─── EMAIL LOGS (DELIVERY AUDIT) ───────────────────────────────────
+
+  async getEmailLogs(userId: string): Promise<EmailLog[]> {
+    const key = `voyage_email_logs_${userId}`;
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async addEmailLog(log: EmailLog): Promise<EmailLog> {
+    const key = `voyage_email_logs_${log.userId}`;
+    try {
+      const logs = await this.getEmailLogs(log.userId);
+      logs.unshift(log);
+      if (logs.length > 100) logs.length = 100;
+      localStorage.setItem(key, JSON.stringify(logs));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('voyage_email_logs_updated', { detail: log }));
+      }
+    } catch (err) {
+      console.warn('Could not save email log:', err);
+    }
+    return log;
+  },
+
+  async updateEmailLog(logId: string, update: Partial<EmailLog>): Promise<boolean> {
+    // We look across all stored email logs in localStorage
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('voyage_email_logs_')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const logs: EmailLog[] = JSON.parse(raw);
+            const idx = logs.findIndex(l => l.id === logId);
+            if (idx >= 0) {
+              logs[idx] = { ...logs[idx], ...update };
+              localStorage.setItem(k, JSON.stringify(logs));
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('voyage_email_logs_updated', { detail: logs[idx] }));
+              }
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  },
+
+  // ─── TRAVEL OFFERS & MATCHES ───────────────────────────────────────
+
+  async getOfferMatches(userId: string): Promise<OfferMatch[]> {
+    const key = `voyage_offer_matches_${userId}`;
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async saveOfferMatch(match: OfferMatch): Promise<OfferMatch> {
+    const key = `voyage_offer_matches_${match.userId}`;
+    try {
+      const matches = await this.getOfferMatches(match.userId);
+      matches.push(match);
+      localStorage.setItem(key, JSON.stringify(matches));
+    } catch (err) {
+      console.warn('Could not save offer match:', err);
+    }
+    return match;
   }
 };

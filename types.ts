@@ -1,3 +1,16 @@
+export interface NotificationPreference {
+  emailVerified: boolean;
+  emailNotificationsEnabled: boolean;
+  marketingEmailsEnabled: boolean;
+  travelAlertsEnabled: boolean;
+  bookingNotificationsEnabled: boolean;
+  loginAlertsEnabled: boolean;
+  itineraryUpdatesEnabled: boolean;
+  offersEnabled: boolean;
+  digestFrequency: 'instant' | 'daily' | 'weekly';
+  maxOffersPerWeek: number;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -9,6 +22,8 @@ export interface User {
   countriesVisited?: number;
   citiesVisited?: number;
   savedPlacesCount?: number;
+  emailVerified?: boolean;
+  notificationPreferences?: NotificationPreference;
 }
 
 export enum ActivityType {
@@ -331,4 +346,105 @@ export interface CommunityTripTemplate {
   likes: number;
   tags: string[];
   tripData: Trip;
+}
+
+// ─── REAL-TIME EMAIL & NOTIFICATION SYSTEM TYPES ───────────────────────
+
+export enum EmailEventType {
+  USER_REGISTERED = 'USER_REGISTERED',
+  USER_LOGIN = 'USER_LOGIN',
+  PASSWORD_CHANGED = 'PASSWORD_CHANGED',
+  TRIP_CREATED = 'TRIP_CREATED',
+  AI_TRIP_GENERATED = 'AI_TRIP_GENERATED',
+  TRIP_UPDATED = 'TRIP_UPDATED',
+  TRIP_SUMMARY_REQUESTED = 'TRIP_SUMMARY_REQUESTED',
+  BOOKING_CREATED = 'BOOKING_CREATED',
+  BOOKING_CONFIRMED = 'BOOKING_CONFIRMED',
+  BOOKING_UPDATED = 'BOOKING_UPDATED',
+  BOOKING_CANCELLED = 'BOOKING_CANCELLED',
+  ITINERARY_UPDATED = 'ITINERARY_UPDATED',
+  EXPENSE_ADDED = 'EXPENSE_ADDED',
+  TRIP_REMINDER = 'TRIP_REMINDER',
+  FLIGHT_REMINDER = 'FLIGHT_REMINDER',
+  HOTEL_CHECKIN_REMINDER = 'HOTEL_CHECKIN_REMINDER',
+  ACTIVITY_REMINDER = 'ACTIVITY_REMINDER',
+  OFFER_MATCHED = 'OFFER_MATCHED',
+  OFFER_EXPIRED = 'OFFER_EXPIRED',
+  DOCUMENT_ADDED = 'DOCUMENT_ADDED',
+  SECURITY_ALERT = 'SECURITY_ALERT',
+  DAILY_DIGEST = 'DAILY_DIGEST'
+}
+
+export type EmailDeliveryStatus = 'QUEUED' | 'SENDING' | 'SENT' | 'DELIVERED' | 'FAILED' | 'BOUNCED';
+
+export interface EmailLog {
+  id: string;
+  userId: string;
+  recipientEmail: string;
+  recipientName: string;
+  eventType: EmailEventType;
+  subject: string;
+  htmlBody: string;
+  textBody?: string;
+  relatedTripId?: string;
+  relatedBookingId?: string;
+  status: EmailDeliveryStatus;
+  providerMessageId?: string;
+  attempts: number;
+  maxAttempts: number;
+  sentAt?: string;
+  deliveredAt?: string;
+  error?: string;
+  createdAt: string;
+}
+
+export interface InAppNotification {
+  id: string;
+  userId: string;
+  eventType: EmailEventType;
+  title: string;
+  message: string;
+  read: boolean;
+  relatedTripId?: string;
+  relatedBookingId?: string;
+  actionUrl?: string;
+  createdAt: string;
+}
+
+export interface TravelOffer {
+  id: string;
+  provider: string;
+  title: string;
+  destination: string;
+  category: 'Hotel' | 'Flight' | 'Activity' | 'Package' | 'Train';
+  discountPercentage: number;
+  originalPrice: number;
+  offerPrice: number;
+  currency: string;
+  validUntil: string;
+  imageUrl: string;
+  terms: string;
+  url?: string;
+  targetTravelStyles?: string[];
+  maxBudget?: number;
+  isExpired?: boolean;
+}
+
+export interface OfferMatch {
+  id: string;
+  userId: string;
+  offerId: string;
+  tripId?: string;
+  matchedReason: string;
+  emailedAt?: string;
+  createdAt: string;
+}
+
+export interface EmailPayload {
+  user: User;
+  trip?: Trip;
+  booking?: BookingItem;
+  previousBooking?: Partial<BookingItem>;
+  offer?: TravelOffer;
+  customData?: Record<string, any>;
 }

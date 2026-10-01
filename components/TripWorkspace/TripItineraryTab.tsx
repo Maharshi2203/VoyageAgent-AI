@@ -15,7 +15,8 @@ import {
   List,
   Columns
 } from 'lucide-react';
-import { Trip, DayPlan, Activity, ActivityType } from '../../types';
+import { Trip, DayPlan, Activity, ActivityType, User } from '../../types';
+import { notificationService } from '../../services/email/notificationService';
 
 interface TripItineraryTabProps {
   trip: Trip;
@@ -90,6 +91,14 @@ export const TripItineraryTab: React.FC<TripItineraryTabProps> = ({
         }
       };
     });
+
+    const ownerMember = trip.members.find(m => m.role === 'owner') || trip.members[0];
+    const userObj: User = {
+      id: trip.userId,
+      name: ownerMember?.name || 'Explorer',
+      email: ownerMember?.email || 'traveler@voyage.ai'
+    };
+    notificationService.sendItineraryUpdateDebounced(userObj, trip, `Activity removed from Day ${dayIndex + 1}`);
   };
 
   // Add custom activity
@@ -130,6 +139,14 @@ export const TripItineraryTab: React.FC<TripItineraryTabProps> = ({
         }
       };
     });
+
+    const ownerMember = trip.members.find(m => m.role === 'owner') || trip.members[0];
+    const userObj: User = {
+      id: trip.userId,
+      name: ownerMember?.name || 'Explorer',
+      email: ownerMember?.email || 'traveler@voyage.ai'
+    };
+    notificationService.sendItineraryUpdateDebounced(userObj, trip, `Added "${newActivity.name}" to Day ${dayIndex + 1}`);
 
     // Reset
     setNewActName('');

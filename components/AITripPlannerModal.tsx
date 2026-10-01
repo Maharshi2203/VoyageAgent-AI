@@ -38,7 +38,9 @@ export const AITripPlannerModal: React.FC<AITripPlannerModalProps> = ({
   initialDestination,
   userId
 }) => {
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [draftTrip, setDraftTrip] = useState<Trip | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [destination, setDestination] = useState(initialDestination || '');
   const [budget, setBudget] = useState<number>(120000);
   const [days, setDays] = useState<number>(5);
