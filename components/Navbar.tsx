@@ -11,7 +11,6 @@ import {
   User as UserIcon, 
   Plus, 
   Sparkles,
-  Bell,
   Menu,
   X
 } from 'lucide-react';
@@ -37,13 +36,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCreateTrip
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-
-  const notifications = [
-    { id: 1, text: 'Passport checklist verified for your upcoming Tokyo trip.', time: '2h ago' },
-    { id: 2, text: 'Weather alert: Clear skies forecast in Goa this weekend.', time: '1d ago' },
-    { id: 3, text: 'Archi Vance added a suggestion for Day 3 in Kyoto.', time: '2d ago' }
-  ];
 
   return (
     <nav className="sticky top-0 z-50 bg-space-main/80 backdrop-blur-xl border-b border-space-border/60 transition-colors duration-300">
@@ -181,34 +173,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span>Plan Trip</span>
                 </button>
 
-                {/* Notifications Bell */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowNotifications(!showNotifications)}
-                    className="p-2.5 rounded-2xl bg-space-secondary border border-space-border text-typo-secondary hover:text-typo-primary transition-colors relative"
-                    title="Notifications"
-                  >
-                    <Bell size={18} />
-                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand-glow animate-pulse" />
-                  </button>
-
-                  {showNotifications && (
-                    <div className="absolute right-0 mt-3 w-80 bg-space-card border-2 border-space-border rounded-3xl p-5 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                      <div className="flex items-center justify-between pb-3 border-b border-space-border">
-                        <span className="text-xs font-extrabold uppercase tracking-wider text-typo-primary">Notifications</span>
-                        <span className="text-[10px] text-brand-primary font-bold">3 new</span>
-                      </div>
-                      <div className="divide-y divide-space-border/50">
-                        {notifications.map((n) => (
-                          <div key={n.id} className="py-3 text-left">
-                            <p className="text-xs font-medium text-typo-primary leading-snug">{n.text}</p>
-                            <span className="text-[10px] text-typo-muted font-bold mt-1 block">{n.time}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
               </>
             ) : (
               <button
