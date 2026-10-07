@@ -297,6 +297,10 @@ export interface DestinationGuide {
   popularAreas: string[];
   topExperiences: string[];
   coordinates: { lat: number; lng: number };
+  /** Kind of place ("City", "Country", …) for results that come from live place search. */
+  placeType?: string;
+  /** True while budget, season and experiences still have to be generated for this place. */
+  needsDetails?: boolean;
 }
 
 export interface Trip {

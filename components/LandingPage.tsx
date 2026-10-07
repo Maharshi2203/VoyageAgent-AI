@@ -13,27 +13,22 @@ import {
   BookOpen, 
   Zap,
   Globe2,
-  CheckCircle2,
-  Star
+  CheckCircle2
 } from 'lucide-react';
-import { CURATED_DESTINATIONS, INITIAL_COMMUNITY_TEMPLATES } from '../services/mockData';
+import { CURATED_DESTINATIONS } from '../services/mockData';
 
 interface LandingPageProps {
   onPlanTrip: (prompt?: string) => void;
   onExploreDestinations: () => void;
   onViewDestination: (destId: string) => void;
-  onViewCommunity: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onPlanTrip,
   onExploreDestinations,
-  onViewDestination,
-  onViewCommunity
+  onViewDestination
 }) => {
-  const [heroPrompt, setHeroPrompt] = useState(
-    'Plan a 7-day trip to Japan for two people under ₹1,50,000 with food, culture and photography.'
-  );
+  const [heroPrompt, setHeroPrompt] = useState('');
 
   const samplePrompts = [
     '7-day Japan for 2 people with food & culture under ₹1.5L',
@@ -156,7 +151,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <div className="flex flex-col items-center">
               <span className="text-2xl sm:text-3xl font-black text-brand-glow">₹0 Fee</span>
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-typo-muted">Free Community Access</span>
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-typo-muted">Free To Use</span>
             </div>
           </div>
 
@@ -285,61 +280,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             ))}
           </div>
 
-        </div>
-      </section>
-
-      {/* ─── COMMUNITY TEMPLATES SECTION ─────────────────────────── */}
-      <section className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div>
-            <span className="text-xs font-black uppercase tracking-[0.3em] text-brand-primary">Remixable Itineraries</span>
-            <h2 className="text-4xl font-black text-typo-primary tracking-tight mt-1">Community Expeditions</h2>
-          </div>
-          <button
-            onClick={onViewCommunity}
-            className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-brand-primary hover:text-brand-glow transition-colors"
-          >
-            <span>Explore Community Vault</span>
-            <ArrowRight size={16} />
-          </button>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-8">
-          {INITIAL_COMMUNITY_TEMPLATES.map((tmpl) => (
-            <div 
-              key={tmpl.id}
-              className="bg-space-card rounded-[2.5rem] p-6 sm:p-8 border border-space-border hover:border-brand-glow/40 shadow-2xl transition-all duration-300 flex flex-col sm:flex-row gap-6 items-center"
-            >
-              <img 
-                src={tmpl.coverImage} 
-                alt={tmpl.title} 
-                className="w-full sm:w-48 h-48 rounded-2xl object-cover shrink-0"
-              />
-              <div className="space-y-4 flex-1 w-full">
-                <div className="flex items-center justify-between">
-                  <span className="px-3 py-1 rounded-lg bg-brand-primary/10 text-brand-primary border border-brand-primary/20 text-[10px] font-extrabold uppercase tracking-wider">
-                    {tmpl.duration} Days • {tmpl.citiesCount} Cities
-                  </span>
-                  <span className="text-xs font-black text-typo-muted flex items-center gap-1">
-                    <Star size={14} className="text-yellow-400 fill-yellow-400" /> {tmpl.likes}
-                  </span>
-                </div>
-                <div>
-                  <h4 className="text-xl font-black text-typo-primary leading-tight tracking-tight">{tmpl.title}</h4>
-                  <p className="text-xs font-semibold text-brand-glow mt-1">Estimated ₹{tmpl.estimatedBudget.toLocaleString()}</p>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-space-border">
-                  <span className="text-xs font-bold text-typo-secondary">By {tmpl.author.name}</span>
-                  <button
-                    onClick={onViewCommunity}
-                    className="px-4 py-2 rounded-xl bg-space-secondary hover:bg-brand-primary hover:text-space-main text-xs font-bold transition-colors"
-                  >
-                    View & Remix
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
         </div>
       </section>
 

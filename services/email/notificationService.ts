@@ -53,7 +53,7 @@ class NotificationService {
     }
 
     // ─── 2. CHECK EMAIL PREFERENCES & THROTTLES ──────────────────────
-    const checkResult = this.shouldSendEmail(eventType, preferences, user.id);
+    const checkResult = this.shouldSendEmail(eventType, preferences);
     if (!checkResult.shouldSend) {
       return { inAppId: createdInApp?.id, skippedReason: checkResult.reason };
     }
@@ -85,12 +85,11 @@ class NotificationService {
 
   /**
    * Validates whether an email should be sent according to user preferences,
-   * verification status, and rate-limiting throttles.
+   * and verification status.
    */
   private shouldSendEmail(
-    eventType: EmailEventType, 
-    prefs: any, 
-    userId: string
+    eventType: EmailEventType,
+    prefs: any
   ): { shouldSend: boolean; reason?: string } {
     // Master switch for non-security emails
     if (eventType !== EmailEventType.SECURITY_ALERT && eventType !== EmailEventType.PASSWORD_CHANGED) {
@@ -105,14 +104,6 @@ class NotificationService {
         if (!prefs.loginAlertsEnabled) {
           return { shouldSend: false, reason: 'Login alerts disabled in preferences' };
         }
-        // Throttling: Max 1 login email per 30 minutes
-        const throttleKey = `voyage_last_login_email_${userId}`;
-        const lastSent = localStorage.getItem(throttleKey);
-        const thirtyMins = 30 * 60 * 1000;
-        if (lastSent && Date.now() - Number(lastSent) < thirtyMins) {
-          return { shouldSend: false, reason: 'Login alert throttled (sent < 30m ago)' };
-        }
-        localStorage.setItem(throttleKey, String(Date.now()));
         break;
       }
 

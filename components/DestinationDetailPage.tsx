@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Sparkles, 
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { DestinationGuide } from '../types';
 import { CURATED_ACCOMMODATIONS } from '../services/mockData';
+import { liveDestinationService, LiveWeather } from '../services/liveDestinationService';
 
 interface DestinationDetailPageProps {
   destination: DestinationGuide;
@@ -22,11 +23,39 @@ interface DestinationDetailPageProps {
 }
 
 export const DestinationDetailPage: React.FC<DestinationDetailPageProps> = ({
-  destination,
+  destination: initialDestination,
   onBack,
   onPlanTrip
 }) => {
+  // Places found through live search arrive without trip details; they are generated here.
+  const [destination, setDestination] = useState(initialDestination);
+  const [detailsFailed, setDetailsFailed] = useState(false);
+  const isLoadingDetails = Boolean(destination.needsDetails) && !detailsFailed;
+  const pendingText = isLoadingDetails ? 'Generating…' : 'Not available right now';
+
+  useEffect(() => {
+    let cancelled = false;
+    setDestination(initialDestination);
+    setDetailsFailed(false);
+    if (initialDestination.needsDetails) {
+      liveDestinationService.loadDetails(initialDestination)
+        .then((detailed) => { if (!cancelled) setDestination(detailed); })
+        .catch(() => { if (!cancelled) setDetailsFailed(true); });
+    }
+    return () => { cancelled = true; };
+  }, [initialDestination.id]);
+
   const accommodations = CURATED_ACCOMMODATIONS[destination.id] || [];
+  const [weather, setWeather] = useState<LiveWeather | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setWeather(null);
+    liveDestinationService.getWeather([destination]).then((data) => {
+      if (!cancelled) setWeather(data[destination.id] ?? null);
+    });
+    return () => { cancelled = true; };
+  }, [destination.id]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16 animate-in fade-in duration-300">
@@ -41,20 +70,34 @@ export const DestinationDetailPage: React.FC<DestinationDetailPageProps> = ({
 
       {/* Hero Showcase */}
       <div className="relative rounded-[3rem] overflow-hidden border border-space-border shadow-2xl h-[480px]">
-        <img 
-          src={destination.imageUrl} 
-          alt={destination.name} 
-          className="w-full h-full object-cover"
-        />
+        {destination.imageUrl ? (
+          <img
+            src={destination.imageUrl}
+            alt={destination.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-brand-primary/20 via-space-secondary to-space-card" />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-space-main via-space-main/50 to-transparent"></div>
-        
+
         <div className="absolute bottom-8 left-8 right-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-3 max-w-2xl">
-            <span className="px-3.5 py-1.5 rounded-xl bg-brand-primary text-space-main text-[11px] font-black uppercase tracking-widest shadow-md">
-              {destination.category} Destination
-            </span>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="px-3.5 py-1.5 rounded-xl bg-brand-primary text-space-main text-[11px] font-black uppercase tracking-widest shadow-md">
+                {destination.placeType ?? `${destination.category} Destination`}
+              </span>
+              {weather && (
+                <span className="px-3.5 py-1.5 rounded-xl bg-space-card/90 backdrop-blur-md border border-space-border text-typo-primary text-[11px] font-black uppercase tracking-widest shadow-md flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-glow animate-pulse" />
+                  Now {weather.temperature}°C · {weather.condition}
+                </span>
+              )}
+            </div>
             <h1 className="text-5xl sm:text-6xl font-black text-typo-primary tracking-tight leading-none">
-              {destination.name}, <span className="text-brand-glow">{destination.country}</span>
+              {destination.name}{destination.country && destination.country !== destination.name && (
+                <>, <span className="text-brand-glow">{destination.country}</span></>
+              )}
             </h1>
             <p className="text-base sm:text-lg font-medium text-typo-secondary">
               {destination.tagline}
@@ -77,21 +120,23 @@ export const DestinationDetailPage: React.FC<DestinationDetailPageProps> = ({
           <span className="text-[10px] font-black uppercase tracking-widest text-typo-muted flex items-center gap-1.5">
             <Calendar size={13} className="text-brand-primary" /> Best Season
           </span>
-          <p className="text-sm font-extrabold text-typo-primary leading-snug">{destination.bestTimeToVisit}</p>
+          <p className="text-sm font-extrabold text-typo-primary leading-snug">{destination.bestTimeToVisit || pendingText}</p>
         </div>
         <div className="bg-space-card p-6 rounded-3xl border border-space-border space-y-1 shadow-lg">
           <span className="text-[10px] font-black uppercase tracking-widest text-typo-muted flex items-center gap-1.5">
             <Wallet size={13} className="text-brand-primary" /> Estimated Budget
           </span>
           <p className="text-sm font-extrabold text-brand-primary leading-snug">
-            ₹{destination.avgBudgetMin.toLocaleString()} – ₹{destination.avgBudgetMax.toLocaleString()}
+            {destination.avgBudgetMax > 0
+              ? `₹${destination.avgBudgetMin.toLocaleString()} – ₹${destination.avgBudgetMax.toLocaleString()}`
+              : pendingText}
           </p>
         </div>
         <div className="bg-space-card p-6 rounded-3xl border border-space-border space-y-1 shadow-lg">
           <span className="text-[10px] font-black uppercase tracking-widest text-typo-muted flex items-center gap-1.5">
             <Plane size={13} className="text-brand-primary" /> How to Reach
           </span>
-          <p className="text-xs font-semibold text-typo-secondary leading-snug line-clamp-2">{destination.howToReach}</p>
+          <p className="text-xs font-semibold text-typo-secondary leading-snug line-clamp-2">{destination.howToReach || pendingText}</p>
         </div>
         <div className="bg-space-card p-6 rounded-3xl border border-space-border space-y-1 shadow-lg">
           <span className="text-[10px] font-black uppercase tracking-widest text-typo-muted flex items-center gap-1.5">
@@ -116,6 +161,9 @@ export const DestinationDetailPage: React.FC<DestinationDetailPageProps> = ({
           <section className="space-y-4">
             <h2 className="text-2xl font-black text-typo-primary tracking-tight">Prime Districts & Sectors</h2>
             <div className="flex flex-wrap gap-2.5">
+              {destination.popularAreas.length === 0 && (
+                <span className="text-xs font-semibold text-typo-muted">{pendingText}</span>
+              )}
               {destination.popularAreas.map((area, idx) => (
                 <span 
                   key={idx}
@@ -180,6 +228,9 @@ export const DestinationDetailPage: React.FC<DestinationDetailPageProps> = ({
               <Compass size={20} className="text-brand-glow" /> Unmissable Experiences
             </h3>
             <div className="space-y-4">
+              {destination.topExperiences.length === 0 && (
+                <p className="text-xs font-semibold text-typo-muted">{pendingText}</p>
+              )}
               {destination.topExperiences.map((exp, idx) => (
                 <div key={idx} className="flex items-start gap-3">
                   <CheckCircle size={18} className="text-brand-primary shrink-0 mt-0.5" />

@@ -157,7 +157,7 @@ export const EmailPreferencesModal: React.FC<EmailPreferencesModalProps> = ({
                 <div>
                   <h5 className="text-xs font-bold text-white">Login Security Alerts</h5>
                   <p className="text-[11px] text-gray-400">
-                    Get an email whenever a login occurs (Throttled: max 1 per 30 mins)
+                    Get an email whenever a login occurs
                   </p>
                 </div>
               </div>

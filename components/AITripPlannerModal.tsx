@@ -128,11 +128,15 @@ export const AITripPlannerModal: React.FC<AITripPlannerModalProps> = ({
       accommodationType
     };
 
+    // Tracks the stage in progress so a failure is reported against the right step
+    let currentStep: AgentLog['step'] = 'Research';
+
     try {
       addLog('Research', `Initializing Autonomous Exploration Core for ${params.destination}...`);
       await new Promise(r => setTimeout(r, 800));
       addLog('Research', `Scanning geolocations, local attractions, and market indices...`, 'success');
 
+      currentStep = 'Drafting';
       addLog('Drafting', `Synthesizing ${params.days}-day schedule within ₹${params.budget.toLocaleString()} ceiling...`);
       const draft = await travelAgentService.draftPlan(params);
       addLog('Drafting', `Draft plan established with logical geographic clusters.`, 'success', draft.reasoning);
@@ -140,13 +144,23 @@ export const AITripPlannerModal: React.FC<AITripPlannerModalProps> = ({
       addLog('Validation', `Verifying transit feasibility and fiscal allocation...`);
       await new Promise(r => setTimeout(r, 800));
 
+      currentStep = 'Optimization';
       addLog('Optimization', `Polishing travel pacing and local experiences...`);
-      const optimized = await travelAgentService.optimizePlan(params, draft.data);
+      // The optimization pass regenerates the whole itinerary, so it only runs
+      // when the draft actually breaks the budget.
+      const draftTotal = draft.data.days.reduce(
+        (acc, d) => acc + d.accommodationCost + d.activities.reduce((s, a) => s + a.cost, 0),
+        0
+      );
+      const optimized = draftTotal <= params.budget
+        ? { data: draft.data, adjustments: [] as string[] }
+        : await travelAgentService.optimizePlan(params, draft.data);
       if (optimized.adjustments.length > 0) {
         optimized.adjustments.forEach(adj => addLog('Optimization', adj, 'info'));
       }
       addLog('Optimization', `Transit sequence optimized.`, 'success');
 
+      currentStep = 'Finalizing';
       addLog('Finalizing', `Generating smart packing list and booking placeholders...`);
       const smartPacking = await aiAssistantService.generateSmartPackingList(
         params.destination, 
@@ -181,22 +195,7 @@ export const AITripPlannerModal: React.FC<AITripPlannerModalProps> = ({
         coverImage: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1200&q=80',
         itinerary: finalItinerary,
         members: [{ id: userId, name: 'You (Owner)', email: 'traveler@voyage.ai', role: 'owner' }],
-        bookings: [
-          {
-            id: `bk_${Date.now()}_1`,
-            tripId: `trip_${Date.now()}`,
-            type: 'hotel',
-            title: `Recommended Stay in ${params.destination}`,
-            provider: 'Voyage Partner Stays',
-            bookingRef: `HTL-${Math.floor(1000 + Math.random() * 9000)}`,
-            date: new Date().toISOString().split('T')[0],
-            location: params.destination,
-            cost: finalItinerary.days.reduce((s, d) => s + d.accommodationCost, 0),
-            currency: '₹',
-            status: 'confirmed',
-            notes: 'Curated by AI based on your travel style and safety.'
-          }
-        ],
+        bookings: [],
         transports: [
           {
             id: `tr_${Date.now()}_1`,
@@ -231,7 +230,7 @@ export const AITripPlannerModal: React.FC<AITripPlannerModalProps> = ({
 
     } catch (err) {
       console.error(err);
-      addLog('Finalizing', friendlyErrorMessage(err), 'error');
+      addLog(currentStep, friendlyErrorMessage(err), 'error');
       setIsSynthesizing(false);
     }
   };

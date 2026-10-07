@@ -183,21 +183,15 @@ export const databaseService = {
     const key = `voyage_full_trips_${userId}`;
     try {
       const raw = localStorage.getItem(key);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Trip[];
-        if (parsed.length > 0) return parsed;
+      if (!raw) return [];
+
+      const parsed = JSON.parse(raw) as Trip[];
+      // Drop the demo starter trip that older builds seeded into storage
+      const trips = parsed.filter(t => t.id !== `trip_starter_${userId}`);
+      if (trips.length !== parsed.length) {
+        localStorage.setItem(key, JSON.stringify(trips));
       }
-      
-      // If user has no trips yet, seed with one starter trip so the workspace is immediately delightful
-      const starterTrip: Trip = {
-        ...INITIAL_COMMUNITY_TEMPLATES[0].tripData,
-        id: `trip_starter_${userId}`,
-        userId: userId,
-        members: [{ id: userId, name: 'You (Owner)', email: 'traveler@voyage.ai', role: 'owner' }]
-      };
-      const initial = [starterTrip];
-      localStorage.setItem(key, JSON.stringify(initial));
-      return initial;
+      return trips;
     } catch {
       return [];
     }

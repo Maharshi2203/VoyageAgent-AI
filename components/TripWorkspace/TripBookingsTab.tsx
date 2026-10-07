@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Bed, 
   Plane, 
@@ -13,10 +13,14 @@ import {
   AlertCircle, 
   FileText,
   MapPin,
-  Tag
+  Tag,
+  RefreshCw,
+  ExternalLink,
+  Check
 } from 'lucide-react';
 import { Trip, BookingItem, BookingType, BookingStatus, User } from '../../types';
 import { notificationService } from '../../services/email/notificationService';
+import { liveStaysService, LiveStay } from '../../services/liveStaysService';
 
 interface TripBookingsTabProps {
   trip: Trip;
@@ -39,6 +43,58 @@ export const TripBookingsTab: React.FC<TripBookingsTabProps> = ({
   const [newLocation, setNewLocation] = useState(trip.destination);
   const [newCost, setNewCost] = useState<number>(0);
   const [newNotes, setNewNotes] = useState('');
+
+  // Live stays around the destination
+  const [liveStays, setLiveStays] = useState<LiveStay[]>([]);
+  const [staysState, setStaysState] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [staysFetchedAt, setStaysFetchedAt] = useState<Date | null>(null);
+  const [staysReload, setStaysReload] = useState(0);
+  const [showAllStays, setShowAllStays] = useState(false);
+
+  const center = trip.destinationCoords ?? trip.itinerary.destinationCoords;
+
+  useEffect(() => {
+    if (!center) { setStaysState('failed'); return; }
+    const ctrl = new AbortController();
+    setStaysState('loading');
+    liveStaysService.searchStays(center, ctrl.signal)
+      .then((stays) => {
+        if (ctrl.signal.aborted) return;
+        setLiveStays(stays);
+        setStaysFetchedAt(new Date());
+        setStaysState('ready');
+      })
+      .catch(() => { if (!ctrl.signal.aborted) setStaysState('failed'); });
+    return () => ctrl.abort();
+  }, [center?.lat, center?.lng, staysReload]);
+
+  const handleAddLiveStay = (stay: LiveStay) => {
+    const newBooking: BookingItem = {
+      id: `bk_live_${Date.now()}`,
+      tripId: trip.id,
+      type: 'hotel',
+      title: stay.name,
+      provider: 'Not booked yet',
+      bookingRef: '—',
+      date: trip.startDate,
+      endDate: trip.endDate,
+      location: stay.address || trip.destination,
+      cost: 0,
+      currency: trip.currency,
+      status: 'pending',
+      notes: 'Shortlisted from live listings. Book it on the provider site, then add your confirmation code and price here.'
+    };
+    onUpdateTrip(prev => ({ ...prev, bookings: [...prev.bookings, newBooking] }));
+  };
+
+  const statusStyle = (status: BookingStatus) => {
+    switch (status) {
+      case 'pending': return 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20';
+      case 'cancelled':
+      case 'refunded': return 'text-red-400 bg-red-400/10 border-red-400/20';
+      default: return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
+    }
+  };
 
   const getIconForType = (type: BookingType) => {
     switch (type) {
@@ -136,6 +192,114 @@ export const TripBookingsTab: React.FC<TripBookingsTabProps> = ({
         </button>
       </div>
 
+      {/* Live Availability */}
+      <section className="bg-space-card rounded-[2.5rem] p-7 border border-space-border shadow-xl space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-black text-typo-primary tracking-tight flex items-center gap-2.5">
+              <span className={`w-2 h-2 rounded-full ${staysState === 'loading' ? 'bg-yellow-400' : 'bg-brand-glow'} animate-pulse`} />
+              Live availability in {trip.destination}
+            </h3>
+            <p className="text-xs font-semibold text-typo-secondary mt-1">
+              {trip.startDate} → {trip.endDate} · {trip.travelers} traveler{trip.travelers === 1 ? '' : 's'}. Prices open live on the booking site for these dates.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <a href={liveStaysService.flightsUrl(trip)} target="_blank" rel="noopener noreferrer" className="px-4 py-2.5 rounded-xl bg-space-secondary hover:bg-space-border border border-space-border text-xs font-black uppercase tracking-wider text-typo-primary flex items-center gap-2 transition-colors">
+              <Plane size={14} className="text-brand-glow" /> Flights
+            </a>
+            <a href={liveStaysService.trainsUrl(trip)} target="_blank" rel="noopener noreferrer" className="px-4 py-2.5 rounded-xl bg-space-secondary hover:bg-space-border border border-space-border text-xs font-black uppercase tracking-wider text-typo-primary flex items-center gap-2 transition-colors">
+              <Train size={14} className="text-brand-glow" /> Trains
+            </a>
+            <a href={liveStaysService.allStaysUrl(trip)} target="_blank" rel="noopener noreferrer" className="px-4 py-2.5 rounded-xl bg-space-secondary hover:bg-space-border border border-space-border text-xs font-black uppercase tracking-wider text-typo-primary flex items-center gap-2 transition-colors">
+              <Bed size={14} className="text-brand-glow" /> All stays
+            </a>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold text-typo-secondary">
+          <span>
+            {staysState === 'loading' && 'Finding real places to stay…'}
+            {staysState === 'failed' && 'Could not load live stays right now.'}
+            {staysState === 'ready' && `${liveStays.length} real stays near the centre · updated ${staysFetchedAt?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+          </span>
+          <button
+            onClick={() => setStaysReload(n => n + 1)}
+            disabled={staysState === 'loading'}
+            className="inline-flex items-center gap-1.5 text-brand-primary hover:text-brand-glow transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={13} className={staysState === 'loading' ? 'animate-spin' : ''} /> Refresh
+          </button>
+        </div>
+
+        {staysState === 'ready' && liveStays.length === 0 && (
+          <p className="text-xs font-semibold text-typo-muted">
+            No mapped stays within 20 km of the destination centre. Use "All stays" to search the booking site directly.
+          </p>
+        )}
+
+        {liveStays.length > 0 && (
+          <div className="grid md:grid-cols-2 gap-4">
+            {(showAllStays ? liveStays : liveStays.slice(0, 6)).map((stay) => {
+              const isAdded = trip.bookings.some(b => b.title === stay.name);
+              return (
+                <div key={stay.id} className="p-5 rounded-2xl bg-space-secondary/60 border border-space-border space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-black text-typo-primary leading-tight truncate">{stay.name}</h4>
+                      <p className="text-[11px] font-semibold text-typo-muted mt-0.5 truncate">
+                        {stay.address || trip.destination}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-space-card text-brand-primary border border-space-border shrink-0">
+                      {stay.kind}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[11px] font-bold text-typo-secondary flex items-center gap-1">
+                      <MapPin size={12} className="text-brand-glow" /> {stay.distanceKm.toFixed(1)} km from centre
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={liveStaysService.stayPriceUrl(stay, trip)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-space-main border border-brand-primary/20 text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                      >
+                        Live price <ExternalLink size={12} />
+                      </a>
+                      {isAdded ? (
+                        <span className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-bold flex items-center gap-1">
+                          <Check size={12} /> Added
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleAddLiveStay(stay)}
+                          className="px-3 py-1.5 rounded-lg bg-space-card hover:bg-space-border border border-space-border text-typo-primary text-[11px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors"
+                        >
+                          <Plus size={12} /> Shortlist
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {liveStays.length > 6 && (
+          <button
+            onClick={() => setShowAllStays(v => !v)}
+            className="text-xs font-bold text-brand-primary hover:text-brand-glow transition-colors"
+          >
+            {showAllStays ? 'Show fewer' : `Show all ${liveStays.length} stays`}
+          </button>
+        )}
+      </section>
+
       {/* Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
         {['all', 'hotel', 'flight', 'train', 'activity', 'car_rental'].map((t) => (
@@ -186,8 +350,8 @@ export const TripBookingsTab: React.FC<TripBookingsTabProps> = ({
                     </span>
                   </div>
 
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-400/10 px-2.5 py-0.5 rounded-full border border-emerald-400/20">
-                    <CheckCircle2 size={12} /> {b.status}
+                  <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${statusStyle(b.status)}`}>
+                    {b.status === 'pending' ? <Clock size={12} /> : <CheckCircle2 size={12} />} {b.status}
                   </span>
                 </div>
 

@@ -3,16 +3,15 @@ import {
   User, 
   Trip, 
   SavedPlace, 
-  DestinationGuide, 
-  CommunityTripTemplate 
+  DestinationGuide
 } from './types';
 import { databaseService } from './services/databaseService';
+import { liveDestinationService } from './services/liveDestinationService';
 import { Navbar } from './components/Navbar';
 import { AuthPage } from './components/AuthPage';
 import { LandingPage } from './components/LandingPage';
 import { DiscoverPage } from './components/DiscoverPage';
 import { DestinationDetailPage } from './components/DestinationDetailPage';
-import { CommunityPage } from './components/CommunityPage';
 import { DashboardView } from './components/DashboardView';
 import { MyTripsView } from './components/MyTripsView';
 import { SavedPlacesView } from './components/SavedPlacesView';
@@ -50,7 +49,7 @@ export const App: React.FC = () => {
     return null;
   });
 
-  // Client Routing state: 'home' | 'discover' | 'destination-detail' | 'community' | 'dashboard' | 'my-trips' | 'saved-places' | 'travel-map' | 'profile' | 'trip' | 'login'
+  // Client Routing state: 'home' | 'discover' | 'destination-detail' | 'dashboard' | 'my-trips' | 'saved-places' | 'travel-map' | 'profile' | 'trip' | 'login'
   const [currentRoute, setCurrentRoute] = useState<string>(() => {
     return user ? 'dashboard' : 'home';
   });
@@ -146,18 +145,6 @@ export const App: React.FC = () => {
     }
   };
 
-  // Remix template
-  const handleRemixTemplate = async (templateId: string) => {
-    if (!user) {
-      setCurrentRoute('login');
-      return;
-    }
-    const cloned = await databaseService.cloneTemplateToUser(templateId, user);
-    setTrips(prev => [cloned, ...prev]);
-    setActiveTripId(cloned.id);
-    setCurrentRoute('trip');
-  };
-
   // Saved place toggle
   const handleToggleSavedPlace = async (place: SavedPlace) => {
     if (!user) {
@@ -185,7 +172,8 @@ export const App: React.FC = () => {
 
   // Selected Destination object
   const selectedDestination = selectedDestinationId 
-    ? databaseService.getDestinationById(selectedDestinationId)
+    ? liveDestinationService.getDestinationById(selectedDestinationId)
+      ?? databaseService.getDestinationById(selectedDestinationId)
     : undefined;
 
   return (
@@ -220,7 +208,6 @@ export const App: React.FC = () => {
               setSelectedDestinationId(destId);
               setCurrentRoute('destination-detail');
             }}
-            onViewCommunity={() => setCurrentRoute('community')}
           />
         )}
 
@@ -241,17 +228,6 @@ export const App: React.FC = () => {
             destination={selectedDestination}
             onBack={() => setCurrentRoute('discover')}
             onPlanTrip={(destName) => handleLaunchPlanner(undefined, destName)}
-          />
-        )}
-
-        {/* PUBLIC/AUTH: Community Trips */}
-        {currentRoute === 'community' && (
-          <CommunityPage 
-            onRemixTemplate={handleRemixTemplate}
-            onViewTemplateDetails={(tmpl) => {
-              setActiveTripId(tmpl.tripData.id);
-              setCurrentRoute('trip');
-            }}
           />
         )}
 
@@ -366,7 +342,6 @@ export const App: React.FC = () => {
             </p>
             <div className="flex gap-6 text-xs font-bold text-typo-secondary">
               <button onClick={() => setCurrentRoute('discover')} className="hover:text-brand-primary">Destinations</button>
-              <button onClick={() => setCurrentRoute('community')} className="hover:text-brand-primary">Community</button>
               <button onClick={() => setCurrentRoute('home')} className="hover:text-brand-primary">Architecture</button>
             </div>
           </div>

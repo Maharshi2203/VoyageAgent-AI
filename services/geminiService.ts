@@ -10,7 +10,7 @@ import { Type } from "@google/genai";
 import { TripParams, Itinerary } from "../types";
 import { geminiRM } from "./geminiRequestManager";
 
-const MODEL = "gemini-3.6-flash";
+export const MODEL = "gemini-3.6-flash";
 
 const ITINERARY_SCHEMA = {
   type: Type.OBJECT,
@@ -170,30 +170,20 @@ export const travelAgentService = {
   ): Promise<string[]> {
     if (!input || input.length < 2) return [];
 
-    const prompt = `Provide a list of 5 popular travel destination suggestions starting with or matching: "${input}".
-    Format names as "City, Country". Respond with a JSON array of strings.`;
-
+    // Place search runs on Open-Meteo's free geocoder rather than Gemini: it answers
+    // instantly and keeps the small per-minute Gemini quota free for trip planning.
     try {
-      const text = await geminiRM.request({
-        model: MODEL,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-          },
-        },
-        // Use the raw input as cache key so "Par" and "Paris" are different
-        cacheKey: `suggestions::${input.toLowerCase().trim()}`,
-        signal,
-      });
-
-      return JSON.parse(text);
+      const url = 'https://geocoding-api.open-meteo.com/v1/search'
+        + `?name=${encodeURIComponent(input.trim())}&count=5&language=en`;
+      const res = await fetch(url, { signal });
+      if (!res.ok) return [];
+      const json = await res.json();
+      const names = ((json?.results ?? []) as Array<{ name: string; country?: string }>)
+        .map((r) => (r.country ? `${r.name}, ${r.country}` : r.name));
+      return [...new Set(names)];
     } catch (error) {
       // Silently swallow cancelled/debounced requests
-      const msg = error instanceof Error ? error.message : String(error);
-      if (!msg.includes("cancelled")) {
+      if (!(error instanceof Error && error.name === "AbortError")) {
         console.error("Suggestion Error:", error);
       }
       return [];

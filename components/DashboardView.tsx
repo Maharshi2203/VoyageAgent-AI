@@ -242,7 +242,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       )}
 
       {/* Quick Launch Cards */}
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-2 gap-6">
         <div 
           onClick={() => onNavigate('discover')}
           className="bg-space-card p-6 rounded-3xl border border-space-border hover:border-brand-primary/40 shadow-md cursor-pointer transition-all group flex items-center gap-5"
@@ -253,19 +253,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div>
             <h4 className="font-extrabold text-base text-typo-primary">Explore Destinations</h4>
             <p className="text-xs text-typo-secondary font-medium">Curated travel guides & budgets</p>
-          </div>
-        </div>
-
-        <div 
-          onClick={() => onNavigate('community')}
-          className="bg-space-card p-6 rounded-3xl border border-space-border hover:border-brand-primary/40 shadow-md cursor-pointer transition-all group flex items-center gap-5"
-        >
-          <div className="p-4 rounded-2xl bg-space-secondary text-brand-glow group-hover:scale-110 transition-transform">
-            <Sparkles size={24} />
-          </div>
-          <div>
-            <h4 className="font-extrabold text-base text-typo-primary">Remix Templates</h4>
-            <p className="text-xs text-typo-secondary font-medium">Clone public trips into your app</p>
           </div>
         </div>
 

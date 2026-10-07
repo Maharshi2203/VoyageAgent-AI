@@ -95,16 +95,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   Discover
                 </button>
                 <button
-                  onClick={() => onNavigate('community')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                    currentRoute === 'community' 
-                      ? 'bg-space-card text-brand-primary shadow-sm border border-space-border' 
-                      : 'text-typo-secondary hover:text-typo-primary'
-                  }`}
-                >
-                  Community
-                </button>
-                <button
                   onClick={() => onNavigate('saved-places')}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                     currentRoute === 'saved-places' 
@@ -146,16 +136,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }`}
                 >
                   Discover
-                </button>
-                <button
-                  onClick={() => onNavigate('community')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                    currentRoute === 'community' 
-                      ? 'bg-space-card text-brand-primary shadow-sm border border-space-border' 
-                      : 'text-typo-secondary hover:text-typo-primary'
-                  }`}
-                >
-                  Community Trips
                 </button>
               </>
             )}
@@ -248,12 +228,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 Discover Destinations
               </button>
               <button 
-                onClick={() => { onNavigate('community'); setMobileMenuOpen(false); }}
-                className="w-full text-left py-2.5 px-4 rounded-xl text-sm font-bold text-typo-primary hover:bg-space-secondary"
-              >
-                Community Trips
-              </button>
-              <button 
                 onClick={() => { onNavigate('saved-places'); setMobileMenuOpen(false); }}
                 className="w-full text-left py-2.5 px-4 rounded-xl text-sm font-bold text-typo-primary hover:bg-space-secondary"
               >
@@ -291,12 +265,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="w-full text-left py-2.5 px-4 rounded-xl text-sm font-bold text-typo-primary hover:bg-space-secondary"
               >
                 Discover Destinations
-              </button>
-              <button 
-                onClick={() => { onNavigate('community'); setMobileMenuOpen(false); }}
-                className="w-full text-left py-2.5 px-4 rounded-xl text-sm font-bold text-typo-primary hover:bg-space-secondary"
-              >
-                Community Trips
               </button>
               <button 
                 onClick={() => { onNavigate('login'); setMobileMenuOpen(false); }}

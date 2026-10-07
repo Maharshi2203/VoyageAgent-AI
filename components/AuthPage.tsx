@@ -61,7 +61,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin, theme, toggleTheme 
         const res = await databaseService.signInUser(email, password);
         setIsLoading(false);
         if (res.success && res.user) {
-          // Trigger Login Alert (with 30-min throttle protection)
+          // Trigger Login Alert
           notificationService.sendLoginAlert(res.user);
           onLogin(res.user);
         } else {

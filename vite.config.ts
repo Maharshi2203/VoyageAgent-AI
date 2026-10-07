@@ -14,12 +14,14 @@ function emailDispatcherPlugin(env: Record<string, string>) {
             try {
               const data = JSON.parse(body || '{}');
               const { to, subject, html, text } = data;
+              // Reasons each configured provider refused, reported back if none delivers
+              const failures: string[] = [];
 
               // 1. Direct Gmail SMTP via Nodemailer
               const gmailUser = env.GMAIL_USER || process.env.GMAIL_USER;
               const gmailPass = env.GMAIL_APP_PASSWORD || process.env.GMAIL_APP_PASSWORD;
 
-              if (gmailUser && gmailPass) {
+              if (gmailUser && gmailPass) try {
                 const nodemailer = await import('nodemailer');
                 const transporter = nodemailer.createTransport({
                   service: 'gmail',
@@ -45,11 +47,14 @@ function emailDispatcherPlugin(env: Record<string, string>) {
                   deliveredAt: new Date().toISOString()
                 }));
                 return;
+              } catch (gmailErr: any) {
+                console.error('[Email Dispatch] Gmail SMTP failed:', gmailErr?.message || gmailErr);
+                failures.push(`Gmail SMTP (${gmailUser.trim()}): ${gmailErr?.message || gmailErr}`);
               }
 
               // 2. Resend REST API
               const resendKey = (env.RESEND_API_KEY || env.VITE_RESEND_API_KEY || process.env.RESEND_API_KEY || '').trim();
-              if (resendKey && resendKey.length > 8) {
+              if (resendKey && resendKey.length > 8) try {
                 // If using default unverified domain, Resend requires onboarding@resend.dev
                 const configuredFrom = env.VITE_EMAIL_FROM || env.EMAIL_FROM || '';
                 const fromAddress = configuredFrom.includes('@resend.dev') 
@@ -86,9 +91,20 @@ function emailDispatcherPlugin(env: Record<string, string>) {
                   deliveredAt: new Date().toISOString()
                 }));
                 return;
+              } catch (resendErr: any) {
+                console.error('[Email Dispatch] Resend failed:', resendErr?.message || resendErr);
+                failures.push(`Resend: ${resendErr?.message || resendErr}`);
               }
 
-              // 3. Fallback: No live credentials set
+              // 3. Credentials are set but every provider refused them
+              if (failures.length > 0) {
+                res.statusCode = 502;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: failures.join(' | ') }));
+                return;
+              }
+
+              // 4. Fallback: No live credentials set
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({
                 success: false,

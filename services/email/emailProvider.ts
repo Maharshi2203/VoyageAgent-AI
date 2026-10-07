@@ -37,6 +37,9 @@ export class UniversalEmailProvider implements EmailProvider {
   async send(options: SendEmailOptions): Promise<EmailSendResult> {
     const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
+    // Why the backend could not deliver, when it has credentials but they were refused
+    let deliveryError: string | undefined;
+
     // 1. Try sending via backend /api/send-email (Gmail SMTP or Resend)
     try {
       const response = await fetch('/api/send-email', {
@@ -86,6 +89,10 @@ export class UniversalEmailProvider implements EmailProvider {
           console.info(`%cℹ [Live Email Delivery Notice]`, 'color: #F59E0B; font-weight: bold;');
           console.info(`To deliver real emails directly into your Gmail account, add your Gmail credentials or Resend API key to .env.local:\nGMAIL_USER=your_email@gmail.com\nGMAIL_APP_PASSWORD=your_16_char_app_password\nOR\nVITE_RESEND_API_KEY=re_...`);
         }
+      } else {
+        const failure = await response.json().catch(() => null);
+        deliveryError = failure?.error || `Email backend responded ${response.status}`;
+        console.error(`[UniversalEmailProvider] Email to ${options.to} was NOT delivered: ${deliveryError}`);
       }
     } catch (apiErr) {
       console.warn('[UniversalEmailProvider] Backend email dispatch warning:', apiErr);
@@ -158,6 +165,10 @@ export class UniversalEmailProvider implements EmailProvider {
       sentAt: new Date().toISOString(),
       provider: 'dev_console'
     });
+
+    if (deliveryError) {
+      return { success: false, messageId, provider: 'dev_console', error: deliveryError };
+    }
 
     return {
       success: true,

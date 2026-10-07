@@ -38,6 +38,12 @@ interface QueueItem {
   resolve: (value: string) => void;
   reject: (reason: unknown) => void;
   abortController: AbortController;
+  /** Cache key fixed at enqueue time, so a model switch does not change it. */
+  key: string;
+  /** Models already attempted for this request with the current API key. */
+  triedModels: Set<string>;
+  /** The model the caller asked for – tried first again after a key rotation. */
+  firstModel: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -45,6 +51,18 @@ interface QueueItem {
 const CACHE_TTL_MS  = 10 * 60 * 1000; // 10 minutes
 const MAX_RETRIES   = 3;
 const BASE_DELAY_MS = 5_000;           // minimum wait between retries (ms)
+const OVERLOAD_DELAY_MS = 2_000;       // first wait after a 503, doubled each attempt
+const REQUEST_TIMEOUT_MS = 40_000;     // give up on a hung request and move on
+
+/**
+ * Tried in order when the requested model is overloaded, out of quota or hangs.
+ * Free-tier limits (per minute and per day) are per model, so switching is
+ * faster than waiting.
+ */
+const FALLBACK_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite'];
+
+/** Models that reject thinkingConfig (learned at runtime from a 400). */
+const NO_THINKING_CONFIG = new Set<string>();
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -77,6 +95,12 @@ function parseRetryDelayMs(error: unknown): number {
 function is429(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
   return msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+}
+
+/** Transient server-side overload (503) – safe to retry after a short wait. */
+function isOverloaded(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('overloaded');
 }
 
 /**
@@ -142,6 +166,63 @@ function loadApiKeys(): string[] {
   return keys;
 }
 
+// ─── OpenAI fallback ──────────────────────────────────────────────────────────
+
+const OPENAI_ENV     = (import.meta as { env: Record<string, string> }).env;
+const OPENAI_API_KEY = OPENAI_ENV.VITE_OPENAI_API_KEY || '';
+const OPENAI_MODEL   = OPENAI_ENV.VITE_OPENAI_MODEL || 'gpt-4o-mini';
+
+/** Gemini schemas use upper-case type names ("OBJECT"); JSON Schema wants lower-case. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toJsonSchema(schema: any): any {
+  if (Array.isArray(schema)) return schema.map(toJsonSchema);
+  if (!schema || typeof schema !== 'object') return schema;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(schema)) {
+    out[k] = k === 'type' && typeof v === 'string' ? v.toLowerCase() : toJsonSchema(v);
+  }
+  return out;
+}
+
+/** Run a Gemini-shaped request against OpenAI chat completions and return the text. */
+async function requestOpenAI(opts: GeminiRequestOptions, signal: AbortSignal): Promise<string> {
+  const wantsJson = opts.config?.responseMimeType === 'application/json';
+  const schema    = opts.config?.responseSchema ? toJsonSchema(opts.config.responseSchema) : null;
+  // OpenAI's JSON mode only allows a top-level object, so arrays go through as plain text.
+  const jsonMode  = schema?.type === 'object';
+
+  const system: string[] = [];
+  if (wantsJson) system.push('Respond with raw JSON only – no markdown, no code fences, no commentary.');
+  if (schema)    system.push(`The JSON must match this JSON Schema exactly:\n${JSON.stringify(schema)}`);
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      messages: [
+        ...(system.length ? [{ role: 'system', content: system.join('\n\n') }] : []),
+        { role: 'user', content: opts.contents },
+      ],
+      ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
+    }),
+    signal,
+  });
+
+  if (!res.ok) {
+    throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const text: string = data?.choices?.[0]?.message?.content ?? '';
+  // Strip a ```json … ``` wrapper if the model added one anyway
+  return wantsJson ? text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '') : text;
+}
+
 class GeminiRequestManager {
   private keys: string[];
   private keyIndex = 0;
@@ -202,7 +283,10 @@ class GeminiRequestManager {
 
     // 4. Enqueue
     const promise = new Promise<string>((resolve, reject) => {
-      this.queue.push({ options: opts, resolve, reject, abortController: ctrl });
+      this.queue.push({
+        options: opts, resolve, reject, abortController: ctrl,
+        key, triedModels: new Set(), firstModel: opts.model,
+      });
     });
 
     this.pending.set(key, promise);
@@ -251,24 +335,69 @@ class GeminiRequestManager {
   }
 
   private async execute(item: QueueItem, attempt: number): Promise<void> {
-    const key = buildCacheKey(item.options);
+    const key = item.key;
     const t0  = Date.now();
+    const model = item.options.model;
+    item.triedModels.add(model);
+
+    // Thinking roughly triples response time for these prompts, so it is off
+    // unless the caller asks for it.
+    const thinkingOff = !item.options.config?.thinkingConfig && !NO_THINKING_CONFIG.has(model);
+
+    // Abort the HTTP call on caller cancel or when it hangs past the timeout.
+    const http = new AbortController();
+    const onCancel = () => http.abort();
+    item.abortController.signal.addEventListener('abort', onCancel, { once: true });
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; http.abort(); }, REQUEST_TIMEOUT_MS);
+
     try {
       if (item.abortController.signal.aborted) throw new Error('cancelled');
 
       const resp = await this.ai.models.generateContent({
-        model:    item.options.model,
+        model,
         contents: item.options.contents,
-        ...(item.options.config ? { config: item.options.config } : {}),
+        config: {
+          ...(item.options.config ?? {}),
+          ...(thinkingOff ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+          abortSignal: http.signal,
+        },
       });
 
       const text = resp.text ?? '';
       this.cache.set(key, { value: text, expiresAt: Date.now() + CACHE_TTL_MS });
-      this.log('SUCCESS', key, `${Date.now() - t0}ms, attempt ${attempt}`);
+      this.log('SUCCESS', key, `${Date.now() - t0}ms, ${model}, attempt ${attempt}`);
       item.resolve(text);
 
-    } catch (err) {
+    } catch (rawErr) {
+      if (item.abortController.signal.aborted) {
+        item.reject(new Error('cancelled'));
+        return;
+      }
+      const err = timedOut
+        ? new Error(`503 UNAVAILABLE: ${model} did not respond within ${REQUEST_TIMEOUT_MS / 1000}s`)
+        : rawErr;
       const msg = err instanceof Error ? err.message : String(err);
+
+      // This model does not accept thinkingConfig → remember that and retry without it
+      if (thinkingOff && (msg.includes('400') || msg.includes('INVALID_ARGUMENT'))) {
+        NO_THINKING_CONFIG.add(model);
+        await this.execute(item, attempt);
+        return;
+      }
+
+      // Overloaded, hung or out of quota → switch model instead of waiting
+      if (isOverloaded(err) || is429(err)) {
+        const next = FALLBACK_MODELS.find((m) => !item.triedModels.has(m));
+        if (next) {
+          this.log('FALLBACK', key, `${model} busy – switching to ${next}`);
+          console.warn(`[GeminiRM] ${model} is busy – switching to ${next}.`);
+          item.options.model = next;
+          await this.execute(item, attempt);
+          return;
+        }
+      }
+
       const is404 = msg.includes('404') || msg.includes('no longer available') || msg.includes('NOT_FOUND');
 
       // Model retired/unavailable (404) -> Fall back to active model gemini-3.6-flash
@@ -286,13 +415,15 @@ class GeminiRequestManager {
       if (is429(err) && daily) {
         this.log('DAILY_LIMIT', key, `Key #${this.keyIndex + 1} exhausted – attempting key rotation`);
         if (this.rotateKey()) {
-          // Retry the same request with the new key
+          // Retry the same request with the new key, starting from the first model again
+          item.triedModels.clear();
+          item.options.model = item.firstModel;
           await this.execute(item, attempt);
           return;
         }
         // No more keys available
         this.log('NO_KEYS', key, 'All API keys exhausted');
-        item.reject(err);
+        await this.fallbackOrReject(item, err);
         return;
       }
 
@@ -309,10 +440,52 @@ class GeminiRequestManager {
           return;
         }
         await this.execute(item, attempt + 1);
+      } else if (isOverloaded(err) && attempt <= MAX_RETRIES) {
+        // Server overloaded (503) → short exponential backoff: 2s, 4s, 8s
+        const delay = OVERLOAD_DELAY_MS * 2 ** (attempt - 1);
+        this.log('RETRY', key, `503 overloaded, attempt ${attempt}/${MAX_RETRIES}, wait ${delay / 1000}s`);
+        console.warn(`[GeminiRM] 503 – retrying in ${delay / 1000}s (attempt ${attempt}/${MAX_RETRIES})`);
+
+        try {
+          await this.sleep(delay, item.abortController.signal);
+        } catch {
+          item.reject(new Error('cancelled during retry wait'));
+          return;
+        }
+        await this.execute(item, attempt + 1);
       } else {
         this.log('ERROR', key, String(err).slice(0, 120));
-        item.reject(err);
+        await this.fallbackOrReject(item, err);
       }
+    } finally {
+      clearTimeout(timer);
+      item.abortController.signal.removeEventListener('abort', onCancel);
+    }
+  }
+
+  /**
+   * Last resort once Gemini has failed for good: answer the same request with
+   * OpenAI (if VITE_OPENAI_API_KEY is set). Rejects with the original Gemini
+   * error when no fallback is configured or the fallback fails too.
+   */
+  private async fallbackOrReject(item: QueueItem, geminiErr: unknown): Promise<void> {
+    const key = item.key;
+    if (!OPENAI_API_KEY || item.abortController.signal.aborted) {
+      item.reject(geminiErr);
+      return;
+    }
+
+    const t0 = Date.now();
+    this.log('FALLBACK', key, `Gemini failed – retrying with OpenAI ${OPENAI_MODEL}`);
+    console.warn(`[GeminiRM] Gemini failed – falling back to OpenAI (${OPENAI_MODEL}).`);
+    try {
+      const text = await requestOpenAI(item.options, item.abortController.signal);
+      this.cache.set(key, { value: text, expiresAt: Date.now() + CACHE_TTL_MS });
+      this.log('SUCCESS', key, `${Date.now() - t0}ms via OpenAI fallback`);
+      item.resolve(text);
+    } catch (openAiErr) {
+      console.error('[GeminiRM] OpenAI fallback failed:', openAiErr);
+      item.reject(geminiErr);
     }
   }
 
