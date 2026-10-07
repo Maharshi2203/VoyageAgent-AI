@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { MapPin, Globe, Compass, CheckCircle2, Bookmark, Heart } from 'lucide-react';
 import { SavedPlace, Trip } from '../types';
+import { FitBounds } from './MapView';
 
 interface PersonalTravelMapViewProps {
   trips: Trip[];
@@ -112,6 +113,8 @@ export const PersonalTravelMapView: React.FC<PersonalTravelMapViewProps> = ({
               url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             } as any)}
           />
+
+          <FitBounds points={allMarkers.map(m => m.coords)} fallback={[22.0, 78.0]} />
 
           {allMarkers.map((marker) => (
             <Marker key={marker.id} position={marker.coords}>
